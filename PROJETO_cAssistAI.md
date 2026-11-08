@@ -1,6 +1,6 @@
 # cAssistAI — Projeto do produto e plano de implementação
 
-Versão: 0.1 · Atualizado em 08/11/2026 · Estado: projeto inicial, implementação pendente.
+Versão: 0.2 · Atualizado em 08/11/2026 · Estado: primeira versão funcional implementada; integrações externas em validação.
 
 Este é o documento central de decisões, escopo e evolução do cAssistAI. Uma funcionalidade descrita aqui não significa que já foi implementada ou testada. Cada alteração concluída neste documento deve ser registrada em commit e enviada ao GitHub, conforme autorização do proprietário. Não incluir segredos, sessões do WhatsApp ou dados pessoais reais nos commits.
 
@@ -398,9 +398,25 @@ Push para GitHub não significa publicar o aplicativo, implantar um servidor ou 
 | Conversas compartilhadas | Acesso pendente |
 | Preços atuais de IA | Não verificados |
 | Arquitetura e modelo Excel | Projetados; sujeitos a validação durante implementação |
-| Logo e arquivo Excel | Ainda não produzidos |
-| Aplicativo e conector | Ainda não implementados |
-| WhatsApp/IA reais | Ainda não testados |
+| Logo e arquivo Excel | Logo gerado; modelo e exemplo Excel disponíveis no app e em `examples/` |
+| Aplicativo e conector | Central funcional e conector implementado; ver limites da entrega abaixo |
+| WhatsApp/IA reais | Ainda não pareados/testados com serviços externos |
 | Deploy | Não realizado |
 
 Histórico: **0.1 — 08/11/2026:** projeto inicial com decisões do proprietário, arquitetura híbrida, contrato de importação, regras de orçamento, atendimento humano, conversão, cobrança, limitações e critérios de aceite.
+
+### Entrega 0.2 — implementação inicial
+
+O código está no repositório. Instruções completas de instalação, configuração e limites estão em [README.md](README.md). A central usa React/Vite, Express e SQLite com WAL nesta primeira versão; PostgreSQL e execução distribuída continuam sendo evolução planejada.
+
+Implementados: criação do administrador, login/logout, empresas, atendentes com isolamento de acesso, configuração de limites, importação Excel com revisão/versões/restauração, catálogo, simulador, orçamentos UN/M2 com mínimo e entrada, aceite, venda confirmada, atendimento humano, notificações e som com painel aberto, consumo, protocolo autenticado do conector, QR quando gerado pelo WhatsApp e adaptador opcional de IA.
+
+O esquema Excel implementado tem as abas `LEIA_ME`, `EMPRESA`, `PRODUTOS`, `PERGUNTAS` e `CONDICOES`. Variantes são linhas independentes de produto. As abas adicionais descritas na seção 9, descontos/adicionais, coleta configurável e regras comerciais mais complexas permanecem planejados. As condições são públicas; dados financeiros dos anexos não foram importados.
+
+Foram executados testes unitários de cálculo/importação e um fluxo completo em Chromium, incluindo cadastro, importação, orçamento de R$ 560,00 com entrada de R$ 280,00, aceite, transferência humana e confirmação de venda. Também foram verificados o isolamento entre empresas e o limite de números. A validação do protocolo do conector usa eventos simulados, sem enviar mensagens reais.
+
+Limitações operacionais a resolver antes de comercialização: lease exclusivo de instalação, recuperação transacional completa de mensagens em caso de queda, reconciliação de envios incertos, expiração da fila, recuperação/troca de senhas, retenção/exclusão, teto monetário transacional da IA, empacotamento como serviço, pagamentos automáticos e implantação com HTTPS. Número de chamadas de IA não é uma garantia absoluta de gasto. Mensagens com envio incerto não são reenviadas automaticamente e podem manter reserva de franquia até reconciliação.
+
+A marca foi gerada com três cassis e folha verde. O usuário pode alterar o nome da empresa; upload de logo próprio ainda não está implementado. A visão geral identifica a base demonstrativa e os orçamentos simulados. Não há dados de vendas reais fabricados.
+
+Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da central, conector local, identidade, Excel e testes. O conteúdo dos chats prioritários continua pendente de acesso; sua equivalência funcional não é afirmada.

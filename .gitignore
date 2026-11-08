@@ -1,0 +1,10 @@
+node_modules/
+dist/
+data/
+.env
+*.log
+test-results/
+playwright-report/
+connector/auth/
+connector/.env
+connector/node_modules/
