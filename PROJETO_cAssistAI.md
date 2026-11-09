@@ -427,6 +427,13 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**0.5.1 — 09/11/2026 — atualização automática pelo GitHub**
+
+- Pedido do proprietário: não precisar baixar o ZIP a cada mudança.
+- `scripts/update.mjs`: ao abrir, o launcher consulta o último commit da branch (padrão `claude/amazing-fermi-nrlr4z`, configurável em `UPDATE_BRANCH`) no repositório público, baixa o pacote do GitHub e extrai por cima da pasta, guardando a versão em `.cassist-version`. Depois reinicia com o código novo. Não altera `.env`, `data/`, `node_modules` nem o `.bat` em execução. `UPDATE=off` desliga; pastas com `.git` são ignoradas.
+- Verificado em Linux: pasta com versão antiga foi atualizada, chave e dados preservados, segunda abertura informou "versão em dia". Sem acesso ao GitHub, o app segue com a versão atual.
+- A pasta já instalada pelo proprietário (versões 0.4/0.5) ainda não tem o atualizador: precisa de um último download manual.
+
 **0.5 — 09/11/2026 — bot conversando de verdade, WhatsApp mais fácil de conectar, simulação única**
 
 - Relato do proprietário: o QR Code virou "um código gigante" no celular; o bot respondeu "não encontrei uma informação segura" a um simples "oi, tudo bem"; as simulações se acumulavam; o visual está "feminino demais" (fica para depois, prioridade é funcionar).
