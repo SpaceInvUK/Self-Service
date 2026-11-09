@@ -44,19 +44,52 @@ export function calculate(product, quantity, width, height) {
         : Math.round((total * product.entrada) / 100),
   };
 }
+// Requests that always go to a person: refunds, complaints, problems, discounts.
+const humanPatterns = [
+  /\b(atendente|humano|pessoa de verdade|falar com (alguem|uma pessoa|o dono|o gerente|voces))\b/,
+  /\b(reembolso|estorno|dinheiro de volta|devolver o dinheiro|devolucao|cancelar|cancelamento)\b/,
+  /\b(reclamacao|reclamar|procon|defeito|veio errado|chegou errado|nao chegou|quebrad[oa]|estragad[oa])\b/,
+  /\b(desconto|negociar|parcelar|parcelamento)\b/,
+];
+export const needsHuman = (t) => humanPatterns.some((r) => r.test(t));
+const greetingWords =
+  "(oi+|ola|opa|eai|e ai|hey|hello|bom dia|boa tarde|boa noite|salve|menu)";
+const smallTalk =
+  "(tudo (bem|bom|certo|joia|tranquilo)|td (bem|bom)|como vai( voce)?|blz|beleza|tranquilo)";
+const greetingRe = new RegExp(
+  `^(${greetingWords}( ${greetingWords})*( ${smallTalk})?|${smallTalk})$`,
+);
+export const isGreeting = (t) =>
+  greetingRe.test(
+    t
+      .replace(/[^a-z0-9\s]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
 export function reply(knowledge, text, context = {}) {
   const t = norm(text),
     products = knowledge.products.filter((p) => p.ativo);
-  if (/\b(atendente|humano|reclamacao|reembolso|desconto)\b/.test(t))
+  if (needsHuman(t))
     return {
-      text: "Claro! Vou encaminhar sua conversa a um atendente. Ele poderá ajudar com os detalhes.",
+      text: "Entendi. Vou chamar um atendente para cuidar disso com você, só um instante.",
       handoff: true,
       context: {},
     };
-  if (/^(oi|ola|bom dia|boa tarde|boa noite|menu)[!.\s]*$/.test(t))
+  if (isGreeting(t))
     return {
-      text: `Olá! Sou o assistente da ${knowledge.company.nome}. Posso ajudar com dúvidas e orçamentos. Qual produto ou serviço você procura?`,
-      context: {},
+      text: `${/tudo|td|como vai|blz|beleza/.test(t) ? "Oi! Tudo bem sim, e com você?" : "Olá!"} Sou o assistente da ${knowledge.company.nome}. Posso tirar dúvidas e fazer orçamentos. Como posso ajudar?`,
+      smalltalk: true,
+      context,
+    };
+  if (
+    /^(obrigad[oa]|muito obrigad[oa]|valeu|vlw|brigad[oa]|ok obrigad[oa])\b/.test(
+      t,
+    )
+  )
+    return {
+      text: "Por nada! Se precisar de mais alguma coisa, é só chamar.",
+      smalltalk: true,
+      context,
     };
   if (/horario|abre|fecha/.test(t))
     return {

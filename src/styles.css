@@ -2972,3 +2972,13 @@ textarea::placeholder,
     margin-bottom: 24px;
   }
 }
+.pair-code {
+  margin: 8px 0;
+  font:
+    700 32px/1.2 ui-monospace,
+    "SFMono-Regular",
+    Consolas,
+    monospace;
+  letter-spacing: 0.12em;
+  text-align: center;
+}

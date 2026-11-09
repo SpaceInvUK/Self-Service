@@ -427,6 +427,17 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**0.5 — 09/11/2026 — bot conversando de verdade, WhatsApp mais fácil de conectar, simulação única**
+
+- Relato do proprietário: o QR Code virou "um código gigante" no celular; o bot respondeu "não encontrei uma informação segura" a um simples "oi, tudo bem"; as simulações se acumulavam; o visual está "feminino demais" (fica para depois, prioridade é funcionar).
+- Bot: a IA passou a conduzir a conversa (cumprimentos, perguntas abertas, continuidade) com o histórico das últimas 14 mensagens e apenas os dados da empresa (produtos, preços de tabela, perguntas, condições). Responde em JSON com `reply` e `handoff`. Orçamentos, catálogo, perguntas frequentes e pedidos de pessoa continuam determinísticos; a IA nunca calcula totais. Sem IA ou com falha, o bot usa as respostas fixas.
+- Sem IA, o motor agora reconhece cumprimentos ("oi, tudo bem?", "bom dia", "e aí, beleza?") e agradecimentos, e encaminha a um atendente pedidos de reembolso, dinheiro de volta, cancelamento, defeito, reclamação, desconto ou pessoa (`server/engine.mjs`).
+- Limite diário de chamadas de IA por empresa passou de 100 para 1.000, configurável em `AI_DAILY_LIMIT`. A janela do app informa ao ligar se a IA está ligada e mostra erros do provedor.
+- WhatsApp: a tela de conexão explica que o QR deve ser lido de dentro do WhatsApp (Aparelhos conectados), não pela câmera. Nova opção "Conectar com um código": informar o número com DDI e DDD e digitar no celular o código de 8 caracteres (`POST /numbers/:id/pair`, colunas `pair_phone`/`pair_code`, conector usa `requestPairingCode`).
+- Simulador: "Nova simulação" apaga a simulação anterior com suas mensagens e orçamentos de teste; só existe uma simulação por vez.
+- Verificado: testes unitários (10) e de navegador (2); conversa completa com um servidor que imita o Groq (cumprimento → preço → orçamento de R$ 560,00 → frete encaminhado a atendente); fluxo do código de conexão com conector simulado; QR real gerado no modo local. Não verificado: Groq real, pareamento real por QR ou por código (gerar o código envia notificação ao número, por isso não foi feito com número de terceiros).
+- Pendente: aparência menos feminina (pedido do proprietário, adiado).
+
 **0.4 — 09/11/2026 — tudo funcionando no computador do cliente (Windows), sem hospedagem**
 
 - Decisão do proprietário: priorizar funcionamento sobre aparência; não hospedar a central por enquanto; IA pelo Groq (plano gratuito). GitHub Pages foi descartado por não executar servidor; Netlify fica para quando a central precisar atender várias empresas.

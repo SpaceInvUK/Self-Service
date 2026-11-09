@@ -61,3 +61,27 @@ test("template refuses activation until company filled; non-ZIP rejected", async
   assert.ok((await parseWorkbook(await makeWorkbook())).errors.length);
   await assert.rejects(() => parseWorkbook(Buffer.from("not excel")));
 });
+test("greetings and small talk are answered, not handed off", () => {
+  for (const m of [
+    "oi",
+    "Oi, tudo bem?",
+    "bom dia tudo bem",
+    "tudo bem?",
+    "e aí, beleza?",
+  ]) {
+    const r = reply(demoKnowledge, m);
+    assert.equal(r.smalltalk, true, m);
+    assert.notEqual(r.handoff, true, m);
+  }
+  assert.equal(reply(demoKnowledge, "obrigado!").smalltalk, true);
+});
+test("refunds, complaints and discounts always go to a person", () => {
+  for (const m of [
+    "quero meu dinheiro de volta",
+    "quero cancelar o pedido",
+    "o produto veio com defeito",
+    "consegue um desconto?",
+    "quero falar com uma pessoa",
+  ])
+    assert.equal(reply(demoKnowledge, m).handoff, true, m);
+});

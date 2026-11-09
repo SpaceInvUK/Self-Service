@@ -15,9 +15,9 @@ Central de atendimento para empresas, com base de conhecimento em Excel, orçame
 1. Baixe o projeto: no GitHub, botão **Code → Download ZIP**, e extraia a pasta.
 2. Dê dois cliques em **`Iniciar cAssistAI.bat`**. Se o Windows avisar que o arquivo veio da internet, clique em **Mais informações → Executar assim mesmo**.
 3. Na primeira vez, ele instala o Node.js (se faltar) e os componentes, e pergunta a **chave do Groq** (grátis em https://console.groq.com/keys; aperte Enter para usar sem IA).
-4. O Chrome abre no painel. Crie a conta, vá em **WhatsApps → Adicionar WhatsApp** e leia o QR Code com o celular (WhatsApp → Aparelhos conectados → Conectar aparelho).
+4. O Chrome abre no painel. Crie a conta, vá em **WhatsApps → Adicionar WhatsApp** e leia o QR Code **de dentro do WhatsApp** (Aparelhos conectados → Conectar um aparelho). A câmera do celular não serve: ela só mostra um texto. Sem QR, use **Conectar com um código**: informe o número com DDI e DDD e digite no celular o código que aparece.
 
-Deixe a janela preta aberta: fechar a janela desliga o app e o WhatsApp. A configuração fica em `.env` (pode editar com o Bloco de Notas) e os dados em `data/`. Ao baixar uma versão nova, copie a pasta `data` e o arquivo `.env` para a pasta nova para não perder conversas e o pareamento.
+Deixe a janela preta aberta: fechar a janela desliga o app e o WhatsApp. Ao ligar, ela informa se a IA está ligada. Para atualizar, extraia a versão nova por cima da pasta antiga (substituindo arquivos): `.env` e `data/` são preservados. A configuração fica em `.env` (pode editar com o Bloco de Notas) e os dados em `data/`. Ao baixar uma versão nova, copie a pasta `data` e o arquivo `.env` para a pasta nova para não perder conversas e o pareamento.
 
 Nesse modo (`LOCAL_CONNECTORS=true`), a central liga um conector do WhatsApp por número no mesmo computador, sem token para copiar. Em Mac/Linux: `node scripts/local-start.mjs`.
 

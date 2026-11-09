@@ -61,8 +61,28 @@ async function api(path, body) {
   if (!r.ok) throw Error(`Central respondeu HTTP ${r.status}`);
   return r.json();
 }
+let pairCode = null,
+  pairedFor = null,
+  qrSeen = false;
 async function heartbeat() {
-  await api("heartbeat", { status, qr, phone });
+  const r = await api("heartbeat", { status, qr, phone, pairCode });
+  // The panel asked to connect by phone number instead of QR code.
+  if (
+    r.pairPhone &&
+    r.pairPhone !== pairedFor &&
+    qrSeen &&
+    status !== "online"
+  ) {
+    pairedFor = r.pairPhone;
+    try {
+      pairCode = await socket.requestPairingCode(r.pairPhone);
+      console.log("Código de conexão disponível no painel cAssistAI.");
+      await api("heartbeat", { status, qr, phone, pairCode });
+    } catch (e) {
+      pairedFor = null;
+      console.error("Não foi possível gerar o código:", e.message);
+    }
+  }
 }
 async function connect() {
   if (connecting || stopped) return;
@@ -80,6 +100,7 @@ async function connect() {
   socket.ev.on("connection.update", async (update) => {
     try {
       if (update.qr) {
+        qrSeen = true;
         qr = await QRCode.toDataURL(update.qr);
         status = "connecting";
         await heartbeat();
@@ -88,6 +109,8 @@ async function connect() {
       if (update.connection === "open") {
         status = "online";
         qr = null;
+        pairCode = null;
+        pairedFor = null;
         phone = (socket.user?.id || "").split(":")[0].split("@")[0];
         await heartbeat();
         console.log("WhatsApp conectado.");
@@ -95,6 +118,9 @@ async function connect() {
       if (update.connection === "close") {
         status = "offline";
         qr = null;
+        qrSeen = false;
+        pairCode = null;
+        pairedFor = null;
         connecting = false;
         const loggedOut =
           update.lastDisconnect?.error?.output?.statusCode ===

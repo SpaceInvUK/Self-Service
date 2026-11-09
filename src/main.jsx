@@ -2049,25 +2049,83 @@ function Numbers({ data, cid, act, notify, isAdmin }) {
       {qr && (
         <Modal
           title="Conectar ao WhatsApp"
-          subtitle="No celular: WhatsApp → Aparelhos conectados → Conectar aparelho."
+          subtitle="Leia o código de DENTRO do WhatsApp. A câmera do celular ou um leitor de QR só mostram um texto e não conectam."
           onClose={() => setQr(null)}
         >
           {qr.status === "online" ? (
             <Empty icon={CheckCircle2} title="WhatsApp conectado">
-              Você já pode receber mensagens pelo conector.
+              Pronto! As mensagens que chegarem nesse número serão respondidas
+              pelo assistente.
             </Empty>
-          ) : qr.qr ? (
-            <img
-              className="qr-image"
-              src={qr.qr}
-              alt="QR Code para conectar o WhatsApp"
-            />
           ) : (
-            <Empty icon={WifiOff} title="Aguardando o conector">
-              {data.localConnectors
-                ? "Preparando a conexão neste computador. O QR Code aparece aqui em alguns segundos."
-                : "Inicie o serviço na máquina do cliente. O QR Code real aparecerá aqui quando estiver disponível."}
-            </Empty>
+            <>
+              <ol className="setup-steps">
+                <li>Abra o WhatsApp no celular.</li>
+                <li>
+                  Android: toque nos três pontinhos (⋮). iPhone: toque em
+                  Configurações.
+                </li>
+                <li>
+                  Toque em <strong>Aparelhos conectados</strong> →{" "}
+                  <strong>Conectar um aparelho</strong>.
+                </li>
+                <li>Aponte o celular para o QR Code abaixo.</li>
+              </ol>
+              {qr.qr ? (
+                <img
+                  className="qr-image"
+                  src={qr.qr}
+                  alt="QR Code para conectar o WhatsApp"
+                />
+              ) : (
+                <Empty icon={WifiOff} title="Aguardando o conector">
+                  {data.localConnectors
+                    ? "Preparando a conexão neste computador. O QR Code aparece aqui em alguns segundos."
+                    : "Inicie o serviço na máquina do cliente. O QR Code real aparecerá aqui quando estiver disponível."}
+                </Empty>
+              )}
+              <h3>Prefere sem QR Code? Conecte com um código</h3>
+              {qr.pair_code ? (
+                <>
+                  <p className="pair-code">
+                    {qr.pair_code.replace(/^(\w{4})-?(\w{4})$/, "$1-$2")}
+                  </p>
+                  <p className="muted small">
+                    No celular, em Conectar um aparelho, toque em{" "}
+                    <strong>Conectar com número de telefone</strong> e digite
+                    este código.
+                  </p>
+                </>
+              ) : (
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    const phone = new FormData(e.target).get("phone");
+                    const r = await act(() =>
+                      api(`/companies/${cid}/numbers/${qr.id}/pair`, {
+                        method: "POST",
+                        body: { phone },
+                      }),
+                    );
+                    if (r)
+                      notify("Gerando o código… aparece aqui em instantes.");
+                  }}
+                >
+                  <label>
+                    Número do WhatsApp com DDI e DDD
+                    <input
+                      name="phone"
+                      inputMode="numeric"
+                      required
+                      placeholder="Ex.: 5511987654321"
+                    />
+                  </label>
+                  <Button type="submit" variant="secondary">
+                    Gerar código
+                  </Button>
+                </form>
+              )}
+            </>
           )}
         </Modal>
       )}

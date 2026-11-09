@@ -24,6 +24,13 @@ export function openDB(dir = process.env.DATA_DIR || "./data") {
   CREATE TABLE IF NOT EXISTS ai_usage(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,cost REAL,created TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,company_id TEXT,actor TEXT NOT NULL,action TEXT NOT NULL,detail TEXT NOT NULL,created TEXT NOT NULL);
   `);
+  // Later additions to existing installations.
+  for (const column of ["pair_phone TEXT", "pair_code TEXT"])
+    try {
+      db.exec(`ALTER TABLE numbers ADD COLUMN ${column}`);
+    } catch {
+      /* column already exists */
+    }
   return db;
 }
 export const q = (db, sql, ...params) => db.prepare(sql).all(...params);
