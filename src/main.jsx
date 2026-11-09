@@ -1889,8 +1889,9 @@ function Numbers({ data, cid, act, notify, isAdmin }) {
         <div>
           <h3>Seu número precisa de um conector local.</h3>
           <p>
-            Cadastre a conexão, instale o conector e escaneie o QR Code com o
-            WhatsApp autorizado. O computador precisa ficar ligado e conectado.
+            {data.localConnectors
+              ? "Clique em Adicionar WhatsApp e escaneie o QR Code com o celular. Este computador precisa ficar ligado e com o cAssistAI aberto."
+              : "Cadastre a conexão, instale o conector e escaneie o QR Code com o WhatsApp autorizado. O computador precisa ficar ligado e conectado."}
           </p>
         </div>
         <Badge tone="outline">
@@ -1974,7 +1975,9 @@ function Numbers({ data, cid, act, notify, isAdmin }) {
               );
               if (r) {
                 setAdding(false);
-                setCredentials(r);
+                // Local mode: the connector already started on this computer.
+                if (r.local) setQr({ id: r.id, qr: null });
+                else setCredentials(r);
               }
             }}
           >
@@ -2061,8 +2064,9 @@ function Numbers({ data, cid, act, notify, isAdmin }) {
             />
           ) : (
             <Empty icon={WifiOff} title="Aguardando o conector">
-              Inicie o serviço na máquina do cliente. O QR Code real aparecerá
-              aqui quando estiver disponível.
+              {data.localConnectors
+                ? "Preparando a conexão neste computador. O QR Code aparece aqui em alguns segundos."
+                : "Inicie o serviço na máquina do cliente. O QR Code real aparecerá aqui quando estiver disponível."}
             </Empty>
           )}
         </Modal>

@@ -18,12 +18,19 @@ import {
 } from "./db.mjs";
 import { makeWorkbook, parseWorkbook, demoKnowledge } from "./workbook.mjs";
 import { reply } from "./engine.mjs";
+import {
+  localConnectorsEnabled,
+  startLocalConnector,
+  stopLocalConnector,
+  resumeLocalConnectors,
+} from "./local-connectors.mjs";
 
 export const db = openDB();
 const app = express();
 const host = process.env.HOST || "127.0.0.1",
   port = Number(process.env.PORT || 3000);
 const production = process.env.NODE_ENV === "production";
+const localCentral = `http://${["0.0.0.0", "::"].includes(host) ? "127.0.0.1" : host}:${port}`;
 app.disable("x-powered-by");
 app.use(
   helmet({
@@ -190,7 +197,8 @@ app.get("/api/session", (req, res) =>
     user: userFrom(req),
     needsSetup: !one(db, "SELECT 1 FROM users LIMIT 1"),
     setupTokenRequired: !["127.0.0.1", "localhost", "::1"].includes(host),
-    aiConfigured: Boolean(process.env.AI_API_KEY && process.env.AI_MODEL),
+    aiConfigured: aiReady(),
+    localConnectors: localConnectorsEnabled,
   }),
 );
 app.post("/api/setup", authLimiter, (req, res) => {
@@ -310,7 +318,8 @@ app.get(base + "/state", (req, res) => {
     quotes,
     usage,
     ai,
-    aiConfigured: Boolean(process.env.AI_API_KEY && process.env.AI_MODEL),
+    aiConfigured: aiReady(),
+    localConnectors: localConnectorsEnabled,
   });
 });
 app.patch(base, (req, res) => {
@@ -394,12 +403,10 @@ app.post(base + "/import", upload.single("file"), async (req, res) => {
     fail("Não foi possível ler a planilha. " + e.message);
   }
   if (parsed.errors.length)
-    return res
-      .status(422)
-      .json({
-        error: "Corrija a planilha antes de importar.",
-        errors: parsed.errors.slice(0, 60),
-      });
+    return res.status(422).json({
+      error: "Corrija a planilha antes de importar.",
+      errors: parsed.errors.slice(0, 60),
+    });
   const id = uid(),
     digest = hash(req.file.buffer);
   run(
@@ -540,8 +547,42 @@ async function serialized(id, fn) {
     if (locks.get(id) === task) locks.delete(id);
   }
 }
+const aiBase = () =>
+  (process.env.AI_BASE_URL || "https://api.openai.com/v1").replace(/\/$/, "");
+function aiReady() {
+  return Boolean(process.env.AI_API_KEY && process.env.AI_MODEL);
+}
+// AI_MODEL=auto picks the first available model from this list, so a free
+// provider changing its catalogue does not silently turn the AI off.
+const preferredModels = [
+  "llama-3.3-70b-versatile",
+  "openai/gpt-oss-120b",
+  "openai/gpt-oss-20b",
+  "llama-3.1-8b-instant",
+];
+let modelCache = null;
+async function aiModel() {
+  if (process.env.AI_MODEL !== "auto") return process.env.AI_MODEL;
+  if (modelCache && Date.now() - modelCache.at < 6 * 3600000)
+    return modelCache.id;
+  const r = await fetch(aiBase() + "/models", {
+    headers: { Authorization: `Bearer ${process.env.AI_API_KEY}` },
+    signal: AbortSignal.timeout(8000),
+  });
+  if (!r.ok) {
+    console.error(`[IA] lista de modelos indisponível (HTTP ${r.status}).`);
+    return null;
+  }
+  const ids = ((await r.json()).data || []).map((m) => m.id);
+  const id = preferredModels.find((m) => ids.includes(m)) || null;
+  if (!id)
+    console.error("[IA] nenhum modelo conhecido disponível; defina AI_MODEL.");
+  else if (modelCache?.id !== id) console.log(`[IA] usando o modelo ${id}.`);
+  modelCache = { id, at: Date.now() };
+  return id;
+}
 async function aiAnswer(c, k, input) {
-  if (!process.env.AI_API_KEY || !process.env.AI_MODEL) return null;
+  if (!aiReady()) return null;
   // Hard call cap limits exposure even in the simulator; model billing remains separate from response quota.
   if (
     one(
@@ -552,13 +593,10 @@ async function aiAnswer(c, k, input) {
     ).n >= 100
   )
     return null;
-  const endpoint = new URL(
-    (process.env.AI_BASE_URL || "https://api.openai.com/v1").replace(
-      /\/$/,
-      "",
-    ) + "/chat/completions",
-  );
+  const endpoint = new URL(aiBase() + "/chat/completions");
   if (endpoint.protocol !== "https:") return null;
+  const model = await aiModel();
+  if (!model) return null;
   const response = await fetch(endpoint, {
     method: "POST",
     headers: {
@@ -566,8 +604,10 @@ async function aiAnswer(c, k, input) {
       Authorization: `Bearer ${process.env.AI_API_KEY}`,
     },
     body: JSON.stringify({
-      model: process.env.AI_MODEL,
-      max_tokens: 250,
+      model,
+      // Reasoning models spend part of the budget thinking before answering.
+      max_tokens: model.includes("gpt-oss") ? 1200 : 400,
+      ...(model.includes("gpt-oss") ? { reasoning_effort: "low" } : {}),
       temperature: 0.2,
       messages: [
         {
@@ -585,7 +625,11 @@ async function aiAnswer(c, k, input) {
     }),
     signal: AbortSignal.timeout(12000),
   });
-  if (!response.ok) return null;
+  if (!response.ok) {
+    console.error(`[IA] provedor respondeu HTTP ${response.status}.`);
+    if (response.status === 404 || response.status === 400) modelCache = null;
+    return null;
+  }
   const data = await response.json(),
     u = data.usage || {},
     i = u.prompt_tokens || 0,
@@ -598,7 +642,7 @@ async function aiAnswer(c, k, input) {
     "INSERT INTO ai_usage VALUES(?,?,?,?,?,?,?)",
     uid(),
     c.company_id,
-    process.env.AI_MODEL,
+    model,
     i,
     o,
     Number.isFinite(cost) ? cost : null,
@@ -606,6 +650,7 @@ async function aiAnswer(c, k, input) {
   );
   const answer = data.choices?.[0]?.message?.content;
   return typeof answer === "string" &&
+    answer.trim() &&
     !answer.includes("ENCAMINHAR") &&
     answer.length < 3000
     ? answer
@@ -839,7 +884,8 @@ app.post(base + "/numbers", (req, res) => {
       now(),
     );
   });
-  res.json({ id, token });
+  const local = startLocalConnector(id, token, localCentral);
+  res.json(local ? { id, local: true } : { id, token });
 });
 app.get(base + "/numbers/:id/qr", (req, res) => {
   if (req.user.role !== "admin") fail("Acesso não autorizado.", 403);
@@ -873,6 +919,7 @@ app.delete(base + "/numbers/:id", (req, res) => {
       req.company.id,
     );
   });
+  stopLocalConnector(req.params.id);
   res.json({ ok: true });
 });
 // Connector endpoints use a per-number token, never the administrator session or an AI key.
@@ -1019,15 +1066,17 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   const status = err.status || (err instanceof multer.MulterError ? 400 : 500);
   console.error(`[${status}] ${err.message}`);
-  res
-    .status(status)
-    .json({
-      error:
-        status === 500
-          ? "Não foi possível concluir a operação. Consulte o log do servidor."
-          : err.message,
-    });
+  res.status(status).json({
+    error:
+      status === 500
+        ? "Não foi possível concluir a operação. Consulte o log do servidor."
+        : err.message,
+  });
 });
-app.listen(port, host, () =>
-  console.log(`cAssistAI disponível em http://${host}:${port}`),
-);
+app.listen(port, host, () => {
+  console.log(`cAssistAI disponível em http://${host}:${port}`);
+  resumeLocalConnectors(
+    q(db, "SELECT id FROM numbers").map((n) => n.id),
+    localCentral,
+  );
+});

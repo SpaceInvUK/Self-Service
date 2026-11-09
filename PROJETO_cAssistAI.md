@@ -401,6 +401,7 @@ Push para GitHub não significa publicar o aplicativo, implantar um servidor ou 
 | Logo e arquivo Excel | Logo gerado; modelo e exemplo Excel disponíveis no app e em `examples/` |
 | Aplicativo e conector | Central funcional e conector implementado; ver limites da entrega abaixo |
 | WhatsApp/IA reais | Ainda não pareados/testados com serviços externos |
+| Uso local no Windows | `Iniciar cAssistAI.bat`: central + conector WhatsApp + IA Groq no mesmo computador, sem hospedagem |
 | Versão em arquivo único | `cAssistAI-offline.html`: abre com dois cliques, sem servidor; sem WhatsApp/IA reais |
 | Deploy | Não realizado |
 
@@ -425,6 +426,16 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 ### Registro de alterações
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
+
+**0.4 — 09/11/2026 — tudo funcionando no computador do cliente (Windows), sem hospedagem**
+
+- Decisão do proprietário: priorizar funcionamento sobre aparência; não hospedar a central por enquanto; IA pelo Groq (plano gratuito). GitHub Pages foi descartado por não executar servidor; Netlify fica para quando a central precisar atender várias empresas.
+- `Iniciar cAssistAI.bat` (dois cliques): instala o Node.js via winget se faltar, e roda `scripts/local-start.mjs`, que cria o `.env`, pede a chave do Groq, instala dependências só quando mudam, monta o painel, liga a central e abre o navegador.
+- Modo local (`LOCAL_CONNECTORS=true`, `server/local-connectors.mjs`): ao adicionar um WhatsApp no painel, a central inicia o conector no mesmo computador e o QR Code abre sozinho. Tokens ficam em `data/local-connectors.json` e sessões em `data/whatsapp/<id>`, fora do Git. O conector reinicia após falhas, volta junto com o app e é encerrado ao remover o número.
+- IA: `AI_MODEL=auto` escolhe o modelo disponível na conta do provedor; modelos de raciocínio recebem orçamento de resposta maior. Erros do provedor aparecem no log da janela.
+- Verificado em Linux: QR Code real do WhatsApp gerado no painel em modo local; reinício e remoção do conector; instalação do zero pelo `local-start.mjs`; resposta da IA contra um servidor que imita o Groq (sem chave real). Testes unitários (8) e de navegador (2) passando.
+- Não verificado: execução do `.bat` em Windows real, pareamento com um celular real e chamada real ao Groq. Dependem do computador e da chave do proprietário.
+- Limitações deste modo: o painel abre só nesse computador; o computador precisa ficar ligado com a janela aberta; não há controle central de licenças entre empresas.
 
 **0.3.1 — 09/11/2026 — arquivo único mais robusto**
 

@@ -10,9 +10,22 @@ Central de atendimento para empresas, com base de conhecimento em Excel, orçame
 
 ## Abrir o app
 
-**Jeito mais fácil, sem instalar nada:** baixe o arquivo [`cAssistAI-offline.html`](cAssistAI-offline.html) e abra com dois cliques no Chrome (ou Edge/Firefox) de um computador. O painel, o simulador, os orçamentos e a importação Excel funcionam direto no navegador, e os dados ficam salvos só nele. A conexão real com WhatsApp e a IA precisam da versão com servidor, descrita abaixo. Visualizadores de arquivos do celular ou do e-mail não executam o app. Depois de mudar o código, gere o arquivo de novo com `npm run build:offline`.
+### Windows, com dois cliques (recomendado)
 
-**Versão completa, com servidor.** Requisito: **Node.js 24 ou superior**.
+1. Baixe o projeto: no GitHub, botão **Code → Download ZIP**, e extraia a pasta.
+2. Dê dois cliques em **`Iniciar cAssistAI.bat`**. Se o Windows avisar que o arquivo veio da internet, clique em **Mais informações → Executar assim mesmo**.
+3. Na primeira vez, ele instala o Node.js (se faltar) e os componentes, e pergunta a **chave do Groq** (grátis em https://console.groq.com/keys; aperte Enter para usar sem IA).
+4. O Chrome abre no painel. Crie a conta, vá em **WhatsApps → Adicionar WhatsApp** e leia o QR Code com o celular (WhatsApp → Aparelhos conectados → Conectar aparelho).
+
+Deixe a janela preta aberta: fechar a janela desliga o app e o WhatsApp. A configuração fica em `.env` (pode editar com o Bloco de Notas) e os dados em `data/`. Ao baixar uma versão nova, copie a pasta `data` e o arquivo `.env` para a pasta nova para não perder conversas e o pareamento.
+
+Nesse modo (`LOCAL_CONNECTORS=true`), a central liga um conector do WhatsApp por número no mesmo computador, sem token para copiar. Em Mac/Linux: `node scripts/local-start.mjs`.
+
+O arquivo [`cAssistAI-offline.html`](cAssistAI-offline.html) é só uma demonstração do painel: não tem WhatsApp nem IA.
+
+### Manual, pelo terminal
+
+Requisito: **Node.js 24 ou superior**.
 
 ```bash
 git clone https://github.com/SpaceInvUK/Self-Service.git
@@ -88,7 +101,7 @@ Envios com confirmação perdida ficam como `sending`/`uncertain` e mantêm a re
 
 Sem chave, a aplicação atende catálogo, perguntas por palavras-chave, horários e orçamentos com regras. Isso já permite testar o fluxo completo sem custo de API.
 
-Para perguntas institucionais que não correspondam às regras, configure no `.env` da **central**:
+Para perguntas institucionais que não correspondam às regras, configure no `.env` da **central**. Com o Groq (plano gratuito), o `Iniciar cAssistAI.bat` já preenche `AI_BASE_URL=https://api.groq.com/openai/v1` e `AI_MODEL=auto`; `auto` consulta os modelos disponíveis na sua conta e escolhe o primeiro de uma lista de preferência (`server/index.mjs`). Para outro provedor:
 
 ```dotenv
 AI_API_KEY=configure_localmente
