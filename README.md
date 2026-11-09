@@ -10,7 +10,9 @@ Central de atendimento para empresas, com base de conhecimento em Excel, orçame
 
 ## Abrir o app
 
-Requisito: **Node.js 24 ou superior**.
+**Jeito mais fácil, sem instalar nada:** baixe o arquivo [`cAssistAI-offline.html`](cAssistAI-offline.html) e abra com dois cliques no Chrome (ou Edge/Firefox) de um computador. O painel, o simulador, os orçamentos e a importação Excel funcionam direto no navegador, e os dados ficam salvos só nele. A conexão real com WhatsApp e a IA precisam da versão com servidor, descrita abaixo. Visualizadores de arquivos do celular ou do e-mail não executam o app. Depois de mudar o código, gere o arquivo de novo com `npm run build:offline`.
+
+**Versão completa, com servidor.** Requisito: **Node.js 24 ou superior**.
 
 ```bash
 git clone https://github.com/SpaceInvUK/Self-Service.git

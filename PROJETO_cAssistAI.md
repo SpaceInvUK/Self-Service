@@ -401,6 +401,7 @@ Push para GitHub não significa publicar o aplicativo, implantar um servidor ou 
 | Logo e arquivo Excel | Logo gerado; modelo e exemplo Excel disponíveis no app e em `examples/` |
 | Aplicativo e conector | Central funcional e conector implementado; ver limites da entrega abaixo |
 | WhatsApp/IA reais | Ainda não pareados/testados com serviços externos |
+| Versão em arquivo único | `cAssistAI-offline.html`: abre com dois cliques, sem servidor; sem WhatsApp/IA reais |
 | Deploy | Não realizado |
 
 Histórico: **0.1 — 08/11/2026:** projeto inicial com decisões do proprietário, arquitetura híbrida, contrato de importação, regras de orçamento, atendimento humano, conversão, cobrança, limitações e critérios de aceite.
@@ -420,3 +421,22 @@ Limitações operacionais a resolver antes de comercialização: lease exclusivo
 A marca foi gerada com três cassis e folha verde. O usuário pode alterar o nome da empresa; upload de logo próprio ainda não está implementado. A visão geral identifica a base demonstrativa e os orçamentos simulados. Não há dados de vendas reais fabricados.
 
 Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da central, conector local, identidade, Excel e testes. O conteúdo dos chats prioritários continua pendente de acesso; sua equivalência funcional não é afirmada.
+
+### Registro de alterações
+
+Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
+
+**0.3.1 — 09/11/2026 — arquivo único mais robusto**
+
+- O usuário relatou que o arquivo baixado não abriu. A causa exata depende de como foi aberto e ainda não foi confirmada.
+- O app do arquivo único passou de script de módulo para script clássico no fim da página, que funciona em mais formas de abrir um arquivo local.
+- A página mostra "Abrindo o cAssistAI…" enquanto carrega e, se algo falhar, exibe a mensagem de erro na tela em vez de ficar em branco.
+- Correção no app (também na versão com servidor): quando o navegador bloqueia o armazenamento local (janela anônima, configurações restritas), o app quebrava ao abrir. Agora ele abre normalmente e só deixa de lembrar a última empresa escolhida (`src/main.jsx`).
+- Verificado em Chromium abrindo o arquivo por `file://`, inclusive em pasta com espaços e com armazenamento bloqueado; testes unitários (8) e de navegador (2) passando.
+
+**0.3 — 08/11/2026 — versão em arquivo único**
+
+- Novo `cAssistAI-offline.html`, gerado por `npm run build:offline` a partir de `standalone/`.
+- A API do servidor é reproduzida dentro do navegador (`standalone/mock-api.js`), reaproveitando o motor de respostas (`server/engine.mjs`) e a leitura/geração do Excel (`server/workbook.mjs`). Os dados ficam no `localStorage` do navegador.
+- Funcionam: criação da conta, empresas, atendentes, simulador, orçamentos e aceite, atendimento humano, importação Excel com revisão/versões e download do modelo e do exemplo.
+- Não funcionam nesta versão: conexão real com WhatsApp (o app avisa ao tentar) e IA externa. As senhas são guardadas com hash simples, adequado apenas a demonstração local.

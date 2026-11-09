@@ -330,10 +330,27 @@ const pages = [
   ["usage", "Consumo", Activity],
   ["settings", "Configurações", Settings],
 ];
+// Storage can be blocked (private windows, strict settings); the app must still open.
+const remembered = {
+  get(key) {
+    try {
+      return localStorage.getItem(key);
+    } catch {
+      return null;
+    }
+  },
+  set(key, value) {
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      /* remembering the company is only a convenience */
+    }
+  },
+};
 function App() {
   const [session, setSession] = useState(null),
     [companies, setCompanies] = useState([]),
-    [cid, setCid] = useState(localStorage.getItem("company") || ""),
+    [cid, setCid] = useState(remembered.get("company") || ""),
     [data, setData] = useState(null),
     [page, setPage] = useState("overview"),
     [toast, setToast] = useState(null),
@@ -380,7 +397,7 @@ function App() {
     setData(null);
     setSelected(null);
     if (!cid || !session?.user) return;
-    localStorage.setItem("company", cid);
+    remembered.set("company", cid);
     let active = true;
     const update = () =>
       api(`/companies/${cid}/state`)

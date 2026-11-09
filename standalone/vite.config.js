@@ -9,14 +9,14 @@ export default defineConfig({
   root: here,
   publicDir: false,
   build: {
-    target: "es2022",
+    target: "es2020",
     chunkSizeWarningLimit: 4000,
     outDir: resolve(here, "dist"),
     emptyOutDir: true,
     assetsInlineLimit: Infinity,
     cssCodeSplit: false,
     modulePreload: false,
-    rollupOptions: { output: { inlineDynamicImports: true } },
+    rollupOptions: { output: { format: "iife", inlineDynamicImports: true } },
   },
   plugins: [
     {
@@ -31,10 +31,23 @@ export default defineConfig({
       closeBundle() {
         const dist = resolve(here, "dist");
         let html = readFileSync(resolve(dist, "index.html"), "utf8");
+        // A classic script at the end of <body> runs everywhere a file:// page
+        // can run scripts, including viewers that refuse module scripts.
+        let app = "";
         html = html.replace(
-          /<script type="module" crossorigin src="\.?\/?([^"]+)"><\/script>/,
-          (_, f) =>
-            `<script type="module">${readFileSync(resolve(dist, f), "utf8").replace(/<\/script/gi, "<\\/script")}</script>`,
+          /\s*<script type="module" crossorigin src="\.?\/?([^"]+)"><\/script>/,
+          (_, f) => {
+            app = readFileSync(resolve(dist, f), "utf8").replace(
+              /<\/script/gi,
+              "<\\/script",
+            );
+            return "";
+          },
+        );
+        if (!app) throw Error("offline build: app script not found");
+        html = html.replace(
+          "</body>",
+          () => `<script>${app}</script>\n</body>`,
         );
         html = html.replace(
           /<link rel="stylesheet" crossorigin href="\.?\/?([^"]+)">/,

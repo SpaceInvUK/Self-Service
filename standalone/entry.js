@@ -1,5 +1,4 @@
-import logo from "../public/cassis.png";
+// Order matters: logo and the in-browser API must exist before the app starts.
+import "./logo.js";
 import "./mock-api.js";
-window.__CASSIS_LOGO__ = logo;
-document.querySelector("link[rel=icon]")?.setAttribute("href", logo);
-await import("../src/main.jsx");
+import "../src/main.jsx";
