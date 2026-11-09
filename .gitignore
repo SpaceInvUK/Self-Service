@@ -8,3 +8,4 @@ playwright-report/
 connector/auth/
 connector/.env
 connector/node_modules/
+.cassist-version

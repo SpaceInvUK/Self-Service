@@ -35,6 +35,18 @@ function writeEnv(env) {
   writeFileSync(envPath, lines.join("\n") + "\n", { mode: 0o600 });
 }
 
+// 0. Get the latest version from GitHub, then restart with the new code.
+if (!process.env.CASSIST_UPDATED) {
+  const { update } = await import("./update.mjs");
+  if (await update(root, readEnv())) {
+    const again = spawnSync(process.execPath, [process.argv[1]], {
+      stdio: "inherit",
+      env: { ...process.env, CASSIST_UPDATED: "1" },
+    });
+    process.exit(again.status ?? 0);
+  }
+}
+
 // 1. Configuration (.env) with local mode and Groq.
 const env = {
   HOST: "127.0.0.1",
