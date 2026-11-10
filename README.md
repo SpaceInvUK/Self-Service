@@ -66,6 +66,32 @@ Simulações são identificadas e não consomem a franquia comercial. Se uma IA 
 - Cadastro/revogação de conectores, QR real quando fornecido pelo conector e estado por heartbeat.
 - Marca de cassis, interface responsiva e dados persistidos em SQLite.
 
+## Assistente: ensinar, perguntar ao dono e agendar
+
+- **Sem planilha também funciona.** No cadastro você informa o nome do negócio. O assistente aprende com você na tela **Assistente** (campo "Ensine o assistente") ou pelo WhatsApp.
+- **Conversa com você mesmo no WhatsApp.** No número conectado, abra a conversa "Você" (mensagem para si mesmo). Ali o assistente:
+  - pergunta quando um cliente quer saber algo que ele não sabe (ex.: "Vocês vendem banana?"). Você responde do seu jeito ("não vendemos fruta"), ele responde o cliente e guarda a informação;
+  - aprende o que você mandar a qualquer momento ("bolo de cenoura 30 reais");
+  - avisa quando uma conversa precisa de atendente e quando marca um horário.
+  As mesmas perguntas aparecem na tela **Assistente**, para responder pelo painel.
+- **O que ele faz sozinho:** liga/desliga para tirar dúvidas, fazer orçamentos, fazer agendamentos, perguntar ao dono e avisar o dono. Função desligada = o assistente passa para um atendente.
+- **Horário de funcionamento:** fora do horário, o assistente continua respondendo e avisa quando a empresa abre.
+- **Agendamentos:** com horário de funcionamento preenchido, o assistente oferece só horários livres, marca como "a confirmar" e avisa você. Confirme ou cancele na tela **Agenda**.
+- Precisa da IA (Groq) para conversar, perguntar ao dono e agendar. Sem IA: respostas fixas pela planilha e pelo que você ensinou, e o resto vai para o atendente.
+
+### Google Agenda (opcional)
+
+Sem o Google, os horários ficam só na tela Agenda. Para o assistente consultar e marcar na sua Google Agenda, crie uma chave do Google uma única vez:
+
+1. Acesse https://console.cloud.google.com, entre com a sua conta Google e crie um projeto (ex.: "cAssistAI").
+2. Em **APIs e serviços → Biblioteca**, procure **Google Calendar API** e clique em **Ativar**.
+3. Em **Tela de consentimento OAuth** (ou "Google Auth Platform"), escolha **Externo**, preencha nome e e-mail e adicione o seu Gmail como usuário de teste.
+4. Em **Credenciais → Criar credenciais → ID do cliente OAuth**, escolha o tipo **App para computador** e copie o ID do cliente e a chave secreta.
+5. No arquivo `.env` da pasta do cAssistAI (Bloco de Notas), preencha `GOOGLE_CLIENT_ID=` e `GOOGLE_CLIENT_SECRET=`, salve e abra o app de novo.
+6. Na tela **Agenda**, clique em **Conectar Google Agenda** e autorize. O Google pode avisar que o app não foi verificado: é o seu próprio projeto; clique em **Avançado → Acessar**.
+
+Enquanto o projeto do Google estiver em modo de teste, o Google costuma pedir para conectar de novo a cada 7 dias. Para evitar, publique o app na tela de consentimento. O assistente consulta os horários ocupados (free/busy) e cria eventos "[A confirmar]" na agenda principal.
+
 ## Excel
 
 Baixe os arquivos no painel **Conhecimento**. A versão implementada do esquema é a **1.0**:

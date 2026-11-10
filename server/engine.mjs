@@ -113,6 +113,7 @@ export function reply(knowledge, text, context = {}) {
           "\nQual você deseja?"
         : "Ainda não temos um catálogo ativo. Vou chamar um atendente.",
       handoff: !products.length,
+      catalog: true,
       context: {},
     };
   const faq = knowledge.faqs.find(
@@ -122,7 +123,8 @@ export function reply(knowledge, text, context = {}) {
         .split(",")
         .some((k) => k.trim().length > 2 && t.includes(norm(k.trim()))),
   );
-  if (faq && !context.product) return { text: faq.resposta, context: {} };
+  if (faq && !context.product)
+    return { text: faq.resposta, faq: true, context: {} };
   let product =
     products.find((p) => t.includes(norm(p.codigo))) ||
     products.find((p) => t.includes(norm(p.nome))) ||
@@ -140,7 +142,17 @@ export function reply(knowledge, text, context = {}) {
           )
       );
     });
-  product ||= products.find((p) => p.codigo === context.product);
+  // Staying on the product of the previous message only makes sense when the
+  // customer answers with a quantity or measurements; anything else (a new
+  // subject, a booking, a question) is left to the conversation.
+  if (
+    !product &&
+    context.product &&
+    /^\s*\d+([,.]\d+)?\s*(unidades?|un|pecas?|kits?|x\s*\d+([,.]\d+)?\s*(m|metros?|cm))?\s*[.!]?\s*$|\d+\s*(unidades?|un\b|pecas?|kits?)|\d+([,.]\d+)?\s*[x×]\s*\d+([,.]\d+)?\s*(m|metros?|cm)\b/.test(
+      t,
+    )
+  )
+    product = products.find((p) => p.codigo === context.product);
   if (!product) {
     const matches = products.filter((p) =>
       [p.nome, p.categoria, ...p.sinonimos.split(",")].some(

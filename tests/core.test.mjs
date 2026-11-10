@@ -106,3 +106,42 @@ test("empty company name gives a clear message", async () => {
   const parsed = await parseWorkbook(await makeWorkbook(false));
   assert.ok(parsed.errors.some((e) => e.includes("linha 2")));
 });
+test("business hours: open status, next opening and free slots", async () => {
+  const { openStatus, freeSlots, slotLabel } =
+    await import("../server/hours.mjs");
+  const s = {
+    hoursSet: true,
+    tz: "America/Sao_Paulo",
+    slot: 60,
+    days: {
+      0: null,
+      1: ["08:00", "18:00"],
+      2: ["08:00", "18:00"],
+      3: ["08:00", "18:00"],
+      4: ["08:00", "18:00"],
+      5: ["08:00", "18:00"],
+      6: ["08:00", "12:00"],
+    },
+  };
+  // Tuesday 20:30 in São Paulo (UTC-3).
+  const night = new Date("2026-11-10T23:30:00Z");
+  assert.deepEqual(openStatus(s, night), {
+    open: false,
+    opens: "amanhã às 08:00",
+  });
+  assert.equal(openStatus(s, new Date("2026-11-10T15:00:00Z")).open, true);
+  assert.equal(
+    openStatus(s, new Date("2026-11-14T16:00:00Z")).opens,
+    "segunda às 08:00",
+  );
+  const busy = [{ start: "2026-11-11T12:00:00Z", end: "2026-11-11T13:00:00Z" }];
+  const slots = freeSlots(s, busy, night, 2, 3).map((x) =>
+    slotLabel(x.start, s.tz),
+  );
+  assert.deepEqual(slots, [
+    "qua 11/11 às 08:00",
+    "qua 11/11 às 10:00",
+    "qua 11/11 às 11:00",
+  ]);
+  assert.equal(openStatus({ ...s, hoursSet: false }, night), null);
+});

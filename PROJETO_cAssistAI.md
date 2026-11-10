@@ -427,6 +427,23 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**0.6 — 10/11/2026 — assistente que aprende com o dono, agenda e app mais simples**
+
+- Pedidos do proprietário: app para qualquer pequeno negócio (padaria, manicure…); manter Excel e permitir ensinar por mensagem; quando não souber, o bot pergunta ao dono pelo próprio WhatsApp com pergunta curta e aprende a resposta; ligar/desligar dúvidas, orçamentos e agendamentos (desligado = passa ao atendente); agendar consultando o Google Agenda e avisar que o atendente confirma; avisar o dono no WhatsApp quando precisar de atendente; fora do horário, responder e avisar quando abre; bot com conhecimento mais amplo; cadastro e app mais simples. Aparência e "bot por área" ficam para depois.
+- Canal do dono: a conversa "Você" (mensagem para si mesmo) do número conectado. O conector reconhece mensagens do dono ali (`owner: true`), ignora as que o próprio assistente enviou (ID gerado antes do envio, porque o WhatsApp devolve a mensagem antes de confirmar) e as anteriores ao início. Conversas do dono não aparecem na lista de atendimentos.
+- Perguntas ao dono (`owner_questions`): a IA usa a ação `ask_owner` com pergunta de até ~10 palavras; o cliente recebe "vou confirmar". A resposta do dono (WhatsApp ou tela Assistente) é transformada pela IA em resposta ao cliente e em conhecimento (`learned`: produto com preço, pergunta/resposta ou informação). Sem IA, o texto do dono vai literal para a pergunta pendente mais recente.
+- Conhecimento = planilha (se houver) + o que foi aprendido. Produtos aprendidos entram no orçamento automático. A tela Assistente lista e permite apagar.
+- IA do cliente reescrita (`server/assistant.mjs`, `server/ai.mjs`): ações `reply`, `handoff`, `ask_owner`, `book`; recebe data/hora, aberto/fechado e próximo horário, funções ligadas, horários livres; pode usar conhecimento geral, mas fatos da empresa só dos dados.
+- Funções liga/desliga e horário em `companies.settings` (`PUT /settings`). Com orçamentos ou dúvidas desligados, o motor de regras não responde catálogo/cotação/FAQ e passa ao atendente.
+- Agenda (`server/hours.mjs`, `bookings`): horários livres pelo horário de funcionamento, duração escolhida, agendamentos existentes e, se conectado, free/busy do Google; o servidor valida o horário escolhido pela IA antes de gravar. Agendamento fica "A confirmar"; dono avisado; tela Agenda para confirmar/cancelar.
+- Google Agenda (`server/google.mjs`): OAuth de "App para computador" com retorno em `127.0.0.1`, escopos `calendar.events` e `calendar.freebusy`; cria evento "[A confirmar]". Requer `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` criados pelo proprietário (passo a passo no README).
+- Aviso ao dono no WhatsApp quando a conversa vai para atendente e quando há agendamento novo.
+- Motor de regras: deixou de "grudar" no último produto; só continua nele quando o cliente responde quantidade ou medidas.
+- Cadastro: pede nome do negócio e ramo e cria a empresa do usuário (sem a demonstração Formato). Menu simplificado: Início, Conversas, Assistente, Agenda, Orçamentos, Planilha, WhatsApp, Configurações (Consumo dentro de Configurações).
+- Simulações apagam também perguntas ao dono e agendamentos de teste.
+- Verificado: testes unitários (13) e de navegador (2); fluxo completo por API e no navegador com servidores que imitam o Groq e o Google (pergunta ao dono → resposta pelo WhatsApp → cliente respondido e conhecimento salvo; produto ensinado cotado; agendamento com evento no Google; aviso de atendente na fila do dono); liga/desliga sem IA; versão de demonstração offline abre as telas novas.
+- Não verificado: Groq real, WhatsApp real (em especial a detecção da conversa "Você", que depende de como o WhatsApp entrega mensagens enviadas pelo próprio celular ao aparelho conectado) e Google real.
+
 **0.5.2 — 10/11/2026 — importação do Excel mais tolerante**
 
 - Relato: planilha preenchida, mas a importação acusava a empresa como não preenchida.

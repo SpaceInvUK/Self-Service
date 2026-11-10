@@ -2,6 +2,7 @@ import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
   Browsers,
+  generateMessageID,
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -141,30 +142,48 @@ async function connect() {
     }
   });
   socket.ev.on("messages.upsert", async ({ messages, type }) => {
-    if (type !== "notify") return;
     for (const m of messages) {
-      if (
-        m.key.fromMe ||
-        !m.key.remoteJid ||
-        !/@(s.whatsapp.net|lid)$/.test(m.key.remoteJid) ||
-        !m.key.id
-      )
-        continue;
+      const jid = m.key.remoteJid;
+      if (!jid || !/@(s.whatsapp.net|lid)$/.test(jid) || !m.key.id) continue;
+      // "Message yourself" chat = the owner talking to the assistant. Skip
+      // what the assistant itself sent there and anything from before start.
+      const owner = m.key.fromMe && isSelf(jid);
+      if (owner) {
+        if (sentByBot.has(m.key.id)) continue;
+        const ts = Number(m.messageTimestamp || 0) * 1000;
+        if (ts && ts < startedAt - 60000) continue;
+      } else if (m.key.fromMe || type !== "notify") continue;
       const content = m.message?.ephemeralMessage?.message || m.message;
       const text =
         content?.conversation ||
         content?.extendedTextMessage?.text ||
-        "[Conteúdo não textual recebido — solicitar atendimento humano]";
+        (owner
+          ? ""
+          : "[Conteúdo não textual recebido — solicitar atendimento humano]");
+      if (!text) continue;
       incoming[m.key.id] = {
         id: m.key.id,
-        address: m.key.remoteJid,
+        address: jid,
         name: m.pushName || "",
         text,
+        ...(owner ? { owner: true } : {}),
       };
       persist(inboxPath, incoming);
     }
     await drainInbox();
   });
+}
+const startedAt = Date.now();
+const sentByBot = new Set();
+const userPart = (jid) =>
+  String(jid || "")
+    .split("@")[0]
+    .split(":")[0];
+function isSelf(jid) {
+  const me = [socket?.user?.id, socket?.user?.lid]
+    .filter(Boolean)
+    .map(userPart);
+  return me.includes(userPart(jid));
 }
 let draining = false;
 async function drainInbox() {
@@ -198,7 +217,13 @@ async function poll() {
       delivered[m.id] = { id: m.id, ok: false };
       persist(statePath, delivered);
       try {
-        await socket.sendMessage(m.address, { text: m.text });
+        // The id is known before sending: WhatsApp echoes our own message
+        // back before sendMessage resolves, and it must not look like the owner.
+        const messageId = generateMessageID();
+        sentByBot.add(messageId);
+        if (sentByBot.size > 500)
+          sentByBot.delete(sentByBot.values().next().value);
+        await socket.sendMessage(m.address, { text: m.text }, { messageId });
         delivered[m.id] = { id: m.id, ok: true };
         persist(statePath, delivered);
       } catch {

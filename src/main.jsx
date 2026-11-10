@@ -41,6 +41,7 @@ import {
   MoreHorizontal,
   Play,
   History,
+  CalendarDays,
 } from "lucide-react";
 import "./styles.css";
 const BRL = (v) =>
@@ -251,20 +252,38 @@ function Auth({ session, onDone }) {
           </h2>
           <p className="muted">
             {session.needsSetup
-              ? "Crie a conta administradora da sua central cAssistAI."
+              ? "Crie sua conta. Leva menos de um minuto."
               : "Entre para cuidar das suas conversas."}
           </p>
           <form onSubmit={submit}>
             {session.needsSetup && (
-              <label>
-                Seu nome
-                <input
-                  name="name"
-                  placeholder="Como podemos chamar você?"
-                  required
-                  autoComplete="name"
-                />
-              </label>
+              <>
+                <label>
+                  Seu nome
+                  <input
+                    name="name"
+                    placeholder="Como podemos chamar você?"
+                    required
+                    autoComplete="name"
+                  />
+                </label>
+                <label>
+                  Nome do seu negócio
+                  <input
+                    name="business"
+                    placeholder="Ex.: Padaria Pão Bom"
+                    required
+                    autoComplete="organization"
+                  />
+                </label>
+                <label>
+                  O que você faz
+                  <input
+                    name="segment"
+                    placeholder="Ex.: padaria, manicure, comunicação visual"
+                  />
+                </label>
+              </>
             )}
             <label>
               E-mail
@@ -313,7 +332,7 @@ function Auth({ session, onDone }) {
           <p className="auth-note">
             <ShieldCheck size={16} />
             {session.needsSetup
-              ? "A demonstração Formato será criada para você testar."
+              ? "Depois é só conectar o WhatsApp. O assistente aprende com você."
               : "Seus dados permanecem separados por empresa."}
           </p>
         </div>
@@ -322,12 +341,13 @@ function Auth({ session, onDone }) {
   );
 }
 const pages = [
-  ["overview", "Visão geral", LayoutDashboard],
-  ["inbox", "Atendimentos", MessageCircle],
-  ["knowledge", "Conhecimento", BookOpen],
+  ["overview", "Início", LayoutDashboard],
+  ["inbox", "Conversas", MessageCircle],
+  ["assistant", "Assistente", Sparkles],
+  ["agenda", "Agenda", CalendarDays],
   ["quotes", "Orçamentos", FileText],
-  ["numbers", "WhatsApps", Smartphone],
-  ["usage", "Consumo", Activity],
+  ["knowledge", "Planilha", BookOpen],
+  ["numbers", "WhatsApp", Smartphone],
   ["settings", "Configurações", Settings],
 ];
 // Storage can be blocked (private windows, strict settings); the app must still open.
@@ -378,6 +398,16 @@ function App() {
   }
   useEffect(() => {
     loadSession();
+    // Back from connecting Google Calendar.
+    const google = new URLSearchParams(window.location.search).get("google");
+    if (google) {
+      notify(
+        google === "ok" ? "Google Agenda conectada." : google,
+        google !== "ok",
+      );
+      setPage("agenda");
+      window.history.replaceState(null, "", "/");
+    }
   }, []);
   async function loadCompanies() {
     const list = await api("/companies");
@@ -637,9 +667,15 @@ function App() {
               )}
               {page === "quotes" && <Quotes {...shared} />}
               {page === "numbers" && <Numbers {...shared} />}
-              {page === "usage" && <Usage {...shared} />}
+              {page === "assistant" && <AssistantPage {...shared} />}
+              {page === "agenda" && (
+                <AgendaPage {...shared} navigate={navigate} />
+              )}
               {page === "settings" && (
-                <SettingsPage {...shared} onCompanies={loadCompanies} />
+                <>
+                  <SettingsPage {...shared} onCompanies={loadCompanies} />
+                  <Usage {...shared} />
+                </>
               )}
             </>
           )}
@@ -729,6 +765,408 @@ function App() {
         </Modal>
       )}
     </div>
+  );
+}
+const dayNames = [
+  "Domingo",
+  "Segunda",
+  "Terça",
+  "Quarta",
+  "Quinta",
+  "Sexta",
+  "Sábado",
+];
+const whenLabel = (iso, tz) =>
+  new Date(iso).toLocaleString("pt-BR", {
+    timeZone: tz,
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+function Toggle({ name, checked, onChange, children }) {
+  return (
+    <label className="check">
+      <input
+        type="checkbox"
+        name={name}
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>{children}</span>
+    </label>
+  );
+}
+function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
+  const [settings, setSettings] = useState(data.settings),
+    [teach, setTeach] = useState(""),
+    [answers, setAnswers] = useState({});
+  useEffect(() => setSettings(data.settings), [cid]);
+  const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
+  const setDay = (d, v) =>
+    setSettings((s) => ({ ...s, days: { ...s.days, [d]: v } }));
+  async function sendOwner(text) {
+    const r = await act(() =>
+      api(`/companies/${cid}/owner/message`, {
+        method: "POST",
+        body: { text },
+      }),
+    );
+    if (r) {
+      notify(r.ownerReply);
+      refresh();
+    }
+    return r;
+  }
+  async function save() {
+    const r = await act(
+      () =>
+        api(`/companies/${cid}/settings`, { method: "PUT", body: settings }),
+      "Pronto, salvo.",
+    );
+    if (r) refresh();
+  }
+  return (
+    <>
+      <PageTitle
+        title="Seu assistente"
+        description="Ensine o que ele precisa saber e escolha o que ele pode fazer sozinho."
+      />
+      {data.ownerQuestions.length > 0 && (
+        <section className="panel owner-questions">
+          <h2>O assistente quer saber</h2>
+          {data.ownerQuestions.map((q) => (
+            <form
+              key={q.id}
+              className="owner-question"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                const text = answers[q.id]?.trim();
+                if (!text) return;
+                const r = await sendOwner(
+                  `Sobre a pergunta "${q.question}" (o cliente perguntou "${q.customer_text}"): ${text}`,
+                );
+                if (r) setAnswers((a) => ({ ...a, [q.id]: "" }));
+              }}
+            >
+              <p>
+                <strong>{q.question}</strong>
+                <br />
+                <span className="muted small">
+                  {q.contact || "Cliente"} perguntou: “{q.customer_text}”
+                </span>
+              </p>
+              <div className="inline-form">
+                <input
+                  aria-label={`Resposta para: ${q.question}`}
+                  placeholder="Sua resposta (ex.: não vendemos fruta)"
+                  value={answers[q.id] || ""}
+                  onChange={(e) =>
+                    setAnswers((a) => ({ ...a, [q.id]: e.target.value }))
+                  }
+                />
+                <Button type="submit" icon={Send}>
+                  Responder
+                </Button>
+              </div>
+            </form>
+          ))}
+        </section>
+      )}
+      <div className="settings-grid">
+        <section className="panel settings-card">
+          <h2>Ensine o assistente</h2>
+          <p className="muted">
+            Escreva do seu jeito, uma coisa por vez. Ex.: “bolo de cenoura R$
+            30”, “não vendemos fruta”, “entregamos só no centro”.
+          </p>
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              if (!teach.trim()) return;
+              if (await sendOwner(teach)) setTeach("");
+            }}
+          >
+            <textarea
+              aria-label="Ensinar o assistente"
+              rows={3}
+              value={teach}
+              onChange={(e) => setTeach(e.target.value)}
+              placeholder="O que o assistente precisa saber?"
+            />
+            <Button type="submit" icon={Sparkles}>
+              Ensinar
+            </Button>
+          </form>
+          <p className="muted small">
+            {data.ownerChannel
+              ? "Pelo celular: no WhatsApp conectado, abra a conversa com você mesmo (“Você”) e escreva lá. O assistente também faz as perguntas por ali."
+              : "Conecte o WhatsApp para o assistente perguntar e aprender pela conversa com você mesmo (“Você”)."}
+          </p>
+          <h3>O que ele já aprendeu</h3>
+          {data.learned.length ? (
+            <ul className="learned-list">
+              {data.learned.map((l) => (
+                <li key={l.id}>
+                  <span>
+                    {l.kind === "product"
+                      ? `${l.data.nome}: ${BRL(l.data.preco * 100)}${l.data.unidade === "M2" ? " por m²" : ""}`
+                      : l.kind === "faq"
+                        ? `${l.data.pergunta} → ${l.data.resposta}`
+                        : l.data.texto}
+                  </span>
+                  <button
+                    className="icon-button"
+                    aria-label="Esquecer"
+                    onClick={() =>
+                      act(
+                        () =>
+                          api(`/companies/${cid}/learned/${l.id}`, {
+                            method: "DELETE",
+                          }),
+                        "Esquecido.",
+                      ).then(refresh)
+                    }
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">Nada ainda.</p>
+          )}
+        </section>
+        <section className="panel settings-card">
+          <h2>O que ele faz sozinho</h2>
+          <p className="muted">
+            Desligado: o assistente passa a conversa para um atendente.
+          </p>
+          <Toggle checked={settings.faq} onChange={(v) => set("faq", v)}>
+            Tirar dúvidas
+          </Toggle>
+          <Toggle checked={settings.quotes} onChange={(v) => set("quotes", v)}>
+            Fazer orçamentos
+          </Toggle>
+          <Toggle
+            checked={settings.booking}
+            onChange={(v) => set("booking", v)}
+          >
+            Fazer agendamentos
+          </Toggle>
+          <Toggle
+            checked={settings.askOwner}
+            onChange={(v) => set("askOwner", v)}
+          >
+            Me perguntar quando não souber
+          </Toggle>
+          <Toggle
+            checked={settings.notifyOwner}
+            onChange={(v) => set("notifyOwner", v)}
+          >
+            Me avisar no WhatsApp quando precisar de atendente
+          </Toggle>
+          <h3>Horário de funcionamento</h3>
+          <Toggle
+            checked={settings.hoursSet}
+            onChange={(v) => set("hoursSet", v)}
+          >
+            Usar horário (fora dele o assistente avisa quando abre)
+          </Toggle>
+          {settings.hoursSet && (
+            <div className="hours-grid">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+                const v = settings.days[d];
+                return (
+                  <div key={d} className="hours-row">
+                    <Toggle
+                      checked={Boolean(v)}
+                      onChange={(on) =>
+                        setDay(d, on ? ["08:00", "18:00"] : null)
+                      }
+                    >
+                      {dayNames[d]}
+                    </Toggle>
+                    {v ? (
+                      <span>
+                        <input
+                          type="time"
+                          aria-label={`${dayNames[d]} abre`}
+                          value={v[0]}
+                          onChange={(e) => setDay(d, [e.target.value, v[1]])}
+                        />
+                        às
+                        <input
+                          type="time"
+                          aria-label={`${dayNames[d]} fecha`}
+                          value={v[1]}
+                          onChange={(e) => setDay(d, [v[0], e.target.value])}
+                        />
+                      </span>
+                    ) : (
+                      <span className="muted small">fechado</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {settings.booking && (
+            <label>
+              Duração de cada horário agendado
+              <select
+                value={settings.slot}
+                onChange={(e) => set("slot", Number(e.target.value))}
+              >
+                {[15, 30, 45, 60, 90, 120].map((m) => (
+                  <option key={m} value={m}>
+                    {m < 60
+                      ? `${m} minutos`
+                      : `${m / 60} hora${m > 60 ? "s" : ""}`}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {settings.booking && !settings.hoursSet && (
+            <p className="error">
+              Para agendar, ligue e preencha o horário de funcionamento.
+            </p>
+          )}
+          {isAdmin && (
+            <Button onClick={save} icon={Check}>
+              Salvar
+            </Button>
+          )}
+        </section>
+      </div>
+    </>
+  );
+}
+function AgendaPage({ data, cid, act, refresh, isAdmin, navigate }) {
+  const upcoming = data.bookings.filter((b) => b.status !== "CANCELADO");
+  return (
+    <>
+      <PageTitle
+        title="Agenda"
+        description="Horários marcados pelo assistente. Confirme com o cliente e marque aqui."
+      >
+        {isAdmin && data.google.connected && (
+          <Button
+            variant="secondary"
+            onClick={() =>
+              act(
+                () => api(`/companies/${cid}/google`, { method: "DELETE" }),
+                "Google Agenda desconectada.",
+              ).then(refresh)
+            }
+          >
+            Desconectar Google Agenda
+          </Button>
+        )}
+        {isAdmin && !data.google.connected && (
+          <Button
+            icon={CalendarDays}
+            onClick={async () => {
+              const r = await act(() =>
+                api(`/companies/${cid}/google/connect`),
+              );
+              if (r?.url) window.location.href = r.url;
+            }}
+          >
+            Conectar Google Agenda
+          </Button>
+        )}
+      </PageTitle>
+      {!data.settings.booking && (
+        <div className="subtle-note">
+          <AlertCircle size={17} />
+          Agendamentos estão desligados. Ligue em{" "}
+          <button className="link" onClick={() => navigate("assistant")}>
+            Assistente
+          </button>
+          .
+        </div>
+      )}
+      <div className="subtle-note">
+        <CalendarDays size={17} />
+        {data.google.connected
+          ? "Google Agenda conectada: o assistente só oferece horários livres nela e cria o evento “[A confirmar]”."
+          : data.google.configured
+            ? "Conecte o Google Agenda para o assistente ver seus compromissos e marcar lá."
+            : "Sem Google Agenda: os horários ficam só aqui. Para usar o Google, siga o passo a passo do README (chave do Google no arquivo .env)."}
+      </div>
+      <section className="panel">
+        {upcoming.length ? (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>Quando</th>
+                <th>Cliente</th>
+                <th>Serviço</th>
+                <th>Situação</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {upcoming.map((b) => (
+                <tr key={b.id}>
+                  <td>{whenLabel(b.start, data.settings.tz)}</td>
+                  <td>{b.customer}</td>
+                  <td>{b.service || "—"}</td>
+                  <td>
+                    <Badge
+                      tone={b.status === "CONFIRMADO" ? "green" : "neutral"}
+                    >
+                      {b.status === "CONFIRMADO" ? "Confirmado" : "A confirmar"}
+                    </Badge>
+                  </td>
+                  <td className="row-actions">
+                    {b.status === "PENDENTE" && (
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          act(
+                            () =>
+                              api(`/companies/${cid}/bookings/${b.id}/status`, {
+                                method: "POST",
+                                body: { status: "CONFIRMADO" },
+                              }),
+                            "Confirmado.",
+                          ).then(refresh)
+                        }
+                      >
+                        Confirmar
+                      </Button>
+                    )}
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        act(
+                          () =>
+                            api(`/companies/${cid}/bookings/${b.id}/status`, {
+                              method: "POST",
+                              body: { status: "CANCELADO" },
+                            }),
+                          "Cancelado.",
+                        ).then(refresh)
+                      }
+                    >
+                      Cancelar
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <Empty icon={CalendarDays} title="Nenhum horário marcado">
+            Quando o assistente agendar algo, aparece aqui.
+          </Empty>
+        )}
+      </section>
+    </>
   );
 }
 function PageTitle({ eyebrow, title, description, children }) {

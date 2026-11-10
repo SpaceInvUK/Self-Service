@@ -56,6 +56,9 @@ const env = {
   AI_BASE_URL: "https://api.groq.com/openai/v1",
   AI_MODEL: "auto",
   AI_API_KEY: "",
+  // Optional: Google Calendar for appointments (see README).
+  GOOGLE_CLIENT_ID: "",
+  GOOGLE_CLIENT_SECRET: "",
   ...readEnv(),
 };
 if (!env.AI_API_KEY && process.stdin.isTTY && !process.env.CASSIST_SKIP_KEY) {

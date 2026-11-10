@@ -2982,3 +2982,98 @@ textarea::placeholder,
   letter-spacing: 0.12em;
   text-align: center;
 }
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  cursor: pointer;
+}
+.check input {
+  width: auto;
+  margin: 0;
+}
+.inline-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.inline-form input {
+  flex: 1;
+}
+.owner-questions {
+  margin-bottom: 20px;
+}
+.owner-question {
+  padding: 12px 0;
+  border-top: 1px solid var(--line, #e5e5e5);
+}
+.learned-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.learned-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line, #e5e5e5);
+}
+.hours-grid {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.hours-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hours-row input[type="time"] {
+  width: auto;
+  margin: 0 6px;
+}
+.row-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+button.link {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+@media (max-width: 640px) {
+  .inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+.owner-questions {
+  padding: 22px 26px;
+}
+.owner-question {
+  border-top: 0;
+}
+.inline-form input,
+.settings-card textarea {
+  display: block;
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #e4dce8;
+  border-radius: 10px;
+  background: #fff;
+  color: inherit;
+  margin-bottom: 10px;
+  resize: vertical;
+}
+.inline-form input {
+  margin-bottom: 0;
+}

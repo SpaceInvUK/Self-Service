@@ -9,7 +9,27 @@ import {
 import { reply } from "../server/engine.mjs";
 
 const KEY = "cassistai-local-v1";
+const defaultSettings = {
+  faq: true,
+  quotes: true,
+  booking: false,
+  askOwner: true,
+  notifyOwner: true,
+  hoursSet: false,
+  tz: "America/Sao_Paulo",
+  slot: 60,
+  days: {
+    0: null,
+    1: ["08:00", "18:00"],
+    2: ["08:00", "18:00"],
+    3: ["08:00", "18:00"],
+    4: ["08:00", "18:00"],
+    5: ["08:00", "18:00"],
+    6: ["08:00", "12:00"],
+  },
+};
 const empty = () => ({
+  learned: [],
   users: [],
   companies: [],
   memberships: [],
@@ -246,7 +266,9 @@ on(
     if (!name) fail("Informe seu nome.");
     const id = uid();
     db.users.push({ id, email, name, password: hash(password), role: "admin" });
-    addCompany("Formato Comunicação Visual", "Comunicação visual", true);
+    const business = text(body.business, 120);
+    if (business) addCompany(business, text(body.segment, 100));
+    else addCompany("Formato Comunicação Visual", "Comunicação visual", true);
     db.session = id;
     return { ok: true };
   },
@@ -319,7 +341,44 @@ on("GET", C + "/state", ({ company }) => {
     usage: Object.values(usage),
     ai: { calls: 0, input: 0, output: 0, cost: null },
     aiConfigured: false,
+    settings: { ...defaultSettings, ...(company.settings || {}) },
+    learned: db.learned.filter((l) => l.company_id === cid),
+    ownerQuestions: [],
+    ownerChannel: false,
+    bookings: [],
+    google: { configured: false, connected: false },
   };
+});
+on("PUT", C + "/settings", ({ company, body }) => {
+  company.settings = {
+    ...defaultSettings,
+    ...(company.settings || {}),
+    ...body,
+  };
+  return { ok: true, settings: company.settings };
+});
+// Offline demo: no AI, so what the owner teaches is kept as plain information.
+on("POST", C + "/owner/message", ({ company, body }) => {
+  const texto = text(body.text);
+  if (!texto) fail("Escreva uma mensagem.");
+  db.learned.push({
+    id: uid(),
+    company_id: company.id,
+    kind: "info",
+    data: { texto },
+    created: now(),
+  });
+  return {
+    ownerReply: "Anotado! (na versão de demonstração o assistente não usa IA)",
+    answered: 0,
+    learned: [],
+  };
+});
+on("DELETE", C + "/learned/:id", ({ company, params }) => {
+  db.learned = db.learned.filter(
+    (l) => !(l.id === params.id && l.company_id === company.id),
+  );
+  return { ok: true };
 });
 on("PATCH", C, ({ user, company, body }) => {
   if (user.role !== "admin")
