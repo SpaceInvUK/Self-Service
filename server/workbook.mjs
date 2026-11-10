@@ -181,10 +181,33 @@ export async function parseWorkbook(buffer) {
   const w = new ExcelJS.Workbook();
   await w.xlsx.load(buffer);
   const errors = [];
+  const norm = (v) =>
+    String(v ?? "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase();
+  // Excel turns typed e-mails/sites into links and formatted text into rich
+  // text; both are plain text for us. Formulas and errors stay rejected.
+  const cellText = (v) => {
+    if (v === null || v === undefined) return { value: "" };
+    if (typeof v !== "object") return { value: v };
+    if (v instanceof Date)
+      return { value: v.toLocaleDateString("pt-BR", { timeZone: "UTC" }) };
+    if (Array.isArray(v.richText))
+      return { value: v.richText.map((r) => r.text).join("") };
+    if ("hyperlink" in v) return cellText(v.text ?? v.hyperlink);
+    if ("formula" in v || "sharedFormula" in v)
+      return { error: "tem fórmula; copie e cole só o valor" };
+    if ("error" in v) return { error: `tem erro do Excel (${v.error})` };
+    return { error: "use texto ou número" };
+  };
   const read = (name) => {
-    const sheet = w.getWorksheet(name);
+    const sheet = w.worksheets.find((ws) => norm(ws.name) === norm(name));
     if (!sheet) {
-      errors.push(`${name}: aba ausente.`);
+      errors.push(
+        `Não encontrei a aba ${name}. Use o modelo do app sem renomear as abas.`,
+      );
       return [];
     }
     if (sheet.rowCount > 2001) {
@@ -194,25 +217,28 @@ export async function parseWorkbook(buffer) {
     const headers = sheet
       .getRow(1)
       .values.slice(1)
-      .map((v) => String(v || "").trim());
+      .map((v) => norm(cellText(v).value));
     for (const h of sheets[name])
-      if (!headers.includes(h)) errors.push(`${name}: coluna ${h} ausente.`);
+      if (!headers.includes(h))
+        errors.push(
+          `${name}: não encontrei a coluna "${h}" na linha 1. Não apague nem renomeie os títulos.`,
+        );
     const rows = [];
     sheet.eachRow((r, n) => {
       if (n === 1) return;
       const o = { _row: n };
       headers.forEach((h, i) => {
-        const v = r.getCell(i + 1).value;
-        if (v && typeof v === "object") {
-          errors.push(
-            `${name}!${r.getCell(i + 1).address}: use texto ou número, sem fórmulas ou links.`,
-          );
+        if (!h) return;
+        const cell = r.getCell(i + 1),
+          { value, error } = cellText(cell.value);
+        if (error) {
+          errors.push(`${name}, célula ${cell.address}: ${error}.`);
           o[h] = "";
         } else {
-          o[h] = v ?? "";
+          o[h] = typeof value === "string" ? value.trim() : value;
           if (String(o[h]).length > 2000)
             errors.push(
-              `${name}!${r.getCell(i + 1).address}: texto acima de 2.000 caracteres.`,
+              `${name}, célula ${cell.address}: texto acima de 2.000 caracteres.`,
             );
         }
       });
@@ -224,8 +250,14 @@ export async function parseWorkbook(buffer) {
     productRows = read("PRODUTOS"),
     faqRows = read("PERGUNTAS"),
     conditionRows = read("CONDICOES");
-  if (companyRows.length !== 1 || !companyRows[0]?.nome)
-    errors.push("EMPRESA: preencha exatamente uma empresa com nome.");
+  if (companyRows.length > 1)
+    errors.push(
+      `EMPRESA: use só a linha 2 (encontrei ${companyRows.length} linhas preenchidas: ${companyRows.map((r) => r._row).join(", ")}).`,
+    );
+  else if (!companyRows[0]?.nome)
+    errors.push(
+      'EMPRESA: preencha o nome da empresa na linha 2, embaixo do título "nome".',
+    );
   const seen = new Set();
   const number = (v) =>
     typeof v === "number"

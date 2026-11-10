@@ -53,7 +53,7 @@ test("import rejects formulas, duplicate codes and malformed prices", async () =
   s.getCell("E2").value = { formula: "1+1", result: 2 };
   s.getCell("E4").value = "não sei";
   const parsed = await parseWorkbook(Buffer.from(await w.xlsx.writeBuffer()));
-  assert.ok(parsed.errors.some((e) => e.includes("fórmulas")));
+  assert.ok(parsed.errors.some((e) => e.includes("fórmula")));
   assert.ok(parsed.errors.some((e) => e.includes("duplicado")));
   assert.ok(parsed.errors.some((e) => e.includes("preço")));
 });
@@ -84,4 +84,25 @@ test("refunds, complaints and discounts always go to a person", () => {
     "quero falar com uma pessoa",
   ])
     assert.equal(reply(demoKnowledge, m).handoff, true, m);
+});
+test("import accepts links, formatted text and renamed-case headers", async () => {
+  const w = new ExcelJS.Workbook();
+  await w.xlsx.load(await makeWorkbook(true));
+  const e = w.getWorksheet("EMPRESA");
+  e.getCell("A1").value = "Nome";
+  e.getCell("A2").value = {
+    richText: [{ text: "Padaria " }, { font: { bold: true }, text: "Pão Bom" }],
+  };
+  e.getCell("C2").value = {
+    text: "contato@padaria.com",
+    hyperlink: "mailto:contato@padaria.com",
+  };
+  const parsed = await parseWorkbook(Buffer.from(await w.xlsx.writeBuffer()));
+  assert.deepEqual(parsed.errors, []);
+  assert.equal(parsed.data.company.nome, "Padaria Pão Bom");
+  assert.equal(parsed.data.company.descricao, "contato@padaria.com");
+});
+test("empty company name gives a clear message", async () => {
+  const parsed = await parseWorkbook(await makeWorkbook(false));
+  assert.ok(parsed.errors.some((e) => e.includes("linha 2")));
 });

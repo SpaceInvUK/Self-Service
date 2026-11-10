@@ -427,6 +427,13 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**0.5.2 — 10/11/2026 — importação do Excel mais tolerante**
+
+- Relato: planilha preenchida, mas a importação acusava a empresa como não preenchida.
+- Causa provável: o Excel transforma e-mails/sites digitados em link e texto com formatação em "texto rico"; o importador recusava essas células e a empresa ficava sem nome. Também exigia abas e títulos com maiúsculas/acentos idênticos.
+- Agora links e texto formatado viram texto comum; abas e títulos são comparados sem diferenciar maiúsculas e acentos; datas viram texto. Fórmulas e erros do Excel continuam recusados, com mensagem dizendo a célula e o que fazer. Mensagens de EMPRESA indicam a linha esperada ou as linhas a mais.
+- Testes unitários: 12 passando.
+
 **0.5.1 — 09/11/2026 — atualização automática pelo GitHub**
 
 - Pedido do proprietário: não precisar baixar o ZIP a cada mudança.
