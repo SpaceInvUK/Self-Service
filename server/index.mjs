@@ -18,7 +18,7 @@ import {
 } from "./db.mjs";
 import { makeWorkbook, parseWorkbook, demoKnowledge } from "./workbook.mjs";
 import { reply, needsHuman } from "./engine.mjs";
-import { aiReady, aiBase } from "./ai.mjs";
+import { aiReady, aiBase, transcribe, audioMaxSeconds } from "./ai.mjs";
 import {
   settingsFor,
   cleanSettings,
@@ -73,7 +73,16 @@ app.use(
       : false,
   }),
 );
-app.use(express.json({ limit: "64kb" }));
+// Voice notes from the connector come base64-encoded; everything else is small.
+const smallJson = express.json({ limit: "64kb" }),
+  audioJson = express.json({ limit: "35mb" });
+app.use((req, res, next) =>
+  (req.path === "/api/connector/incoming" ? audioJson : smallJson)(
+    req,
+    res,
+    next,
+  ),
+);
 app.use(
   "/api",
   rateLimit({
@@ -1128,8 +1137,37 @@ app.post("/api/connector/heartbeat", connector, (req, res) => {
     ok: true,
     pairPhone: !online && !current.pair_code ? current.pair_phone : null,
     teamGroups: teamGroupNames(settingsFor(company)),
+    audioMaxSeconds: audioMaxSeconds(),
   });
 });
+// Turns a voice note into text. {text} on success, {problem} otherwise.
+async function voiceText(req, companyId) {
+  const minutes = (s) => (s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`);
+  if (req.body.audioTooLong)
+    return {
+      problem: "long",
+      length: minutes(Number(req.body.audioTooLong) || 0),
+    };
+  const a = req.body.audio;
+  if (!a || typeof a.data !== "string") return { problem: "failed" };
+  try {
+    const t = await transcribe(
+      db,
+      companyId,
+      a.data,
+      String(a.mimetype || "audio/ogg"),
+      Number(a.seconds) || 0,
+    );
+    return t ? { text: t.slice(0, 4000) } : { problem: "failed" };
+  } catch (e) {
+    console.error("[IA] transcrição falhou:", e.message);
+    return { problem: "failed" };
+  }
+}
+const audioLimitText = () => {
+  const s = audioMaxSeconds();
+  return s >= 60 ? `${Math.round(s / 60)} min` : `${s} s`;
+};
 app.post("/api/connector/incoming", connector, async (req, res) => {
   const n = req.number,
     externalId = text(req.body.id, 200),
@@ -1169,6 +1207,28 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
       if (!authorized) return res.json({ ignored: true });
     }
     await serialized("team:" + company.id, async () => {
+      if (req.body.audio || req.body.audioTooLong || req.body.audioFailed) {
+        const v = await voiceText(req, company.id);
+        if (!v.text) {
+          sendToTeam(
+            db,
+            company.id,
+            v.problem === "long"
+              ? `🎤 Esse áudio tem ${v.length}; o limite é ${audioLimitText()}. Mande em partes menores ou por escrito.`
+              : "🎤 Não consegui entender esse áudio. Pode mandar de novo ou escrever?",
+          );
+          return;
+        }
+        const r = await handleTeamMessage(db, company, v.text, {
+          quotedId: text(req.body.quotedId, 200) || null,
+        });
+        sendToTeam(
+          db,
+          company.id,
+          `🎤 Entendi: "${v.text.slice(0, 300)}${v.text.length > 300 ? "…" : ""}"${r.report ? "\n" + r.report : ""}`,
+        );
+        return;
+      }
       const r =
         req.body.document === true
           ? {
@@ -1224,7 +1284,22 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
     )
       return;
     run(db, "INSERT INTO inbound VALUES(?,?)", n.id, externalId);
-    await receive(conversation(n.company_id, c.id), body);
+    const current = conversation(n.company_id, c.id);
+    if (req.body.audio || req.body.audioTooLong || req.body.audioFailed) {
+      const v = await voiceText(req, n.company_id);
+      if (v.text) return receive(current, `🎤 ${v.text}`);
+      if (v.problem === "long" && current.status === "BOT_ATIVO") {
+        addMessage(current, "customer", `🎤 [áudio de ${v.length}]`);
+        markHandled(current.id);
+        sendBot(
+          db,
+          current,
+          "Recebi seu áudio, mas ele é longo demais para eu ouvir. Pode mandar um mais curto ou escrever?",
+        );
+        return;
+      }
+    }
+    await receive(current, body);
   });
   res.json({ ok: true });
 });

@@ -56,6 +56,8 @@ const env = {
   AI_BASE_URL: "https://api.groq.com/openai/v1",
   AI_MODEL: "auto",
   AI_API_KEY: "",
+  // Longest voice note transcribed, in seconds (Groq free plan: 2 h of audio per hour).
+  AUDIO_MAX_SECONDS: "600",
   // Optional: Google Calendar for appointments (see README).
   GOOGLE_CLIENT_ID: "",
   GOOGLE_CLIENT_SECRET: "",

@@ -3,6 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   Browsers,
   generateMessageID,
+  downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 import pino from "pino";
 import QRCode from "qrcode";
@@ -102,6 +103,7 @@ async function heartbeat() {
     pairCode,
     ...(status === "online" ? { teamJid: teamJid || "" } : {}),
   });
+  if (Number.isInteger(r.audioMaxSeconds)) audioMaxSeconds = r.audioMaxSeconds;
   const names = Array.isArray(r.teamGroups) ? r.teamGroups : [];
   if (names.join() !== teamNames.join()) {
     teamNames = names;
@@ -197,19 +199,24 @@ async function connect() {
         const doc =
           content?.documentMessage ||
           content?.documentWithCaptionMessage?.message?.documentMessage;
+        const voice = await audioFields(m, content);
         const text =
           content?.conversation ||
           content?.extendedTextMessage?.text ||
-          (doc ? doc.fileName || "arquivo" : "");
+          (doc ? doc.fileName || "arquivo" : voice ? "[áudio]" : "");
         if (!text) continue;
         incoming[m.key.id] = {
+          ...voice,
           id: m.key.id,
           address: jid,
           team: true,
           fromMe: Boolean(m.key.fromMe),
           sender: m.key.participant || "",
           senderPn: m.key.participantPn || m.key.participantAlt || "",
-          quotedId: content?.extendedTextMessage?.contextInfo?.stanzaId || "",
+          quotedId:
+            content?.extendedTextMessage?.contextInfo?.stanzaId ||
+            content?.audioMessage?.contextInfo?.stanzaId ||
+            "",
           document: Boolean(doc),
           text,
         };
@@ -226,14 +233,18 @@ async function connect() {
         if (ts && ts < startedAt - 60000) continue;
       } else if (m.key.fromMe || type !== "notify") continue;
       const content = m.message?.ephemeralMessage?.message || m.message;
+      const voice = await audioFields(m, content);
       const text =
         content?.conversation ||
         content?.extendedTextMessage?.text ||
-        (owner
-          ? ""
-          : "[Conteúdo não textual recebido — solicitar atendimento humano]");
+        (voice
+          ? "[áudio]"
+          : owner
+            ? ""
+            : "[Conteúdo não textual recebido — solicitar atendimento humano]");
       if (!text) continue;
       incoming[m.key.id] = {
+        ...voice,
         id: m.key.id,
         address: jid,
         name: m.pushName || "",
@@ -246,6 +257,33 @@ async function connect() {
   });
 }
 const startedAt = Date.now();
+let audioMaxSeconds = 600;
+// Voice notes are downloaded here and transcribed by the central.
+async function audioFields(m, content) {
+  const audio = content?.audioMessage;
+  if (!audio) return null;
+  const seconds = Number(audio.seconds || 0);
+  if (seconds > audioMaxSeconds) return { audioTooLong: seconds };
+  try {
+    const data = await downloadMediaMessage(
+      m,
+      "buffer",
+      {},
+      { logger, reuploadRequest: socket.updateMediaMessage },
+    );
+    if (data.length > 24 * 1024 * 1024) return { audioTooLong: seconds };
+    return {
+      audio: {
+        data: data.toString("base64"),
+        mimetype: audio.mimetype || "audio/ogg",
+        seconds,
+      },
+    };
+  } catch (e) {
+    console.error("Áudio não baixado:", e.message);
+    return { audioFailed: true };
+  }
+}
 const sentByBot = new Set();
 const userPart = (jid) =>
   String(jid || "")

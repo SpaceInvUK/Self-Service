@@ -427,6 +427,14 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**0.8 — 11/11/2026 — áudios do WhatsApp**
+
+- Pedido do proprietário: dar instruções ao bot por áudio no WhatsApp para ele aprender, como faria por texto.
+- O conector baixa mensagens de voz (grupo da equipe, conversa "Você" e clientes) e envia à central; a central transcreve com Whisper do Groq (`whisper-large-v3-turbo`, português; `AI_AUDIO_MODEL` permite trocar) e trata o texto como mensagem escrita. A equipe recebe "🎤 Entendi: …" e o resultado do aprendizado; clientes têm a mensagem registrada como "🎤 …" e são respondidos normalmente.
+- Limite por áudio: 10 min por padrão (`AUDIO_MAX_SECONDS`, até 2 h). Plano gratuito do Groq (página oficial de limites): 25 MB por arquivo, 20 pedidos/min, 2.000/dia, 7.200 s de áudio por hora e 28.800 s por dia; cada áudio conta no mínimo 10 s. Áudios acima do limite ou que falham recebem pedido para reenviar curto ou por escrito; sem IA, áudio de cliente segue para atendente como antes.
+- A rota de mensagens do conector aceita até 35 MB; as demais continuam limitadas a 64 KB.
+- Verificado com transcrição simulada: áudio da equipe (1,5 MB) virou regra salva; áudio de cliente respondido; áudios longos da equipe e do cliente tratados. Testes unitários (16) e de navegador (2). Não verificado com WhatsApp e Groq reais.
+
 **0.7 — 11/11/2026 — prompt do proprietário com as funções controladas pelo aplicativo**
 
 - O proprietário definiu o prompt completo do assistente (salvo em `docs/prompt-assistente.md`) e pediu que agrupamento de mensagens, atendimento humano, consulta ao grupo interno com prazo de 2 minutos, base de conhecimento aprovada e agendamentos provisórios fossem controlados pelo app, não só pelo prompt.

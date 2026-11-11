@@ -105,3 +105,58 @@ export async function chatJSON(db, companyId, messages) {
     return { reply: content.trim() };
   }
 }
+
+// Speech to text (Whisper on Groq's free plan). Returns the text or null.
+export const audioMaxSeconds = () =>
+  Math.min(7200, Math.max(10, Number(process.env.AUDIO_MAX_SECONDS || 600)));
+export async function transcribe(db, companyId, base64, mimetype, seconds) {
+  if (!aiReady()) return null;
+  const endpoint = new URL(aiBase() + "/audio/transcriptions");
+  if (endpoint.protocol !== "https:") return null;
+  const model =
+    process.env.AI_AUDIO_MODEL ||
+    (endpoint.host.includes("openai.com")
+      ? "whisper-1"
+      : "whisper-large-v3-turbo");
+  const ext = /mpeg|mp3/.test(mimetype)
+    ? "mp3"
+    : /mp4|m4a|aac/.test(mimetype)
+      ? "m4a"
+      : "ogg";
+  const form = new FormData();
+  form.append(
+    "file",
+    new Blob([Buffer.from(base64, "base64")], {
+      type: String(mimetype).split(";")[0],
+    }),
+    `audio.${ext}`,
+  );
+  form.append("model", model);
+  form.append("language", "pt");
+  form.append("response_format", "json");
+  const r = await fetch(endpoint, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${process.env.AI_API_KEY}` },
+    body: form,
+    signal: AbortSignal.timeout(120000),
+  });
+  if (!r.ok) {
+    console.error(
+      `[IA] transcrição recusada (HTTP ${r.status}): ${(await r.text()).slice(0, 200)}`,
+    );
+    return null;
+  }
+  const text = String((await r.json()).text || "").trim();
+  run(
+    db,
+    "INSERT INTO ai_usage VALUES(?,?,?,?,?,?,?)",
+    uid(),
+    companyId,
+    model,
+    Math.round(seconds || 0),
+    0,
+    null,
+    now(),
+  );
+  return text || null;
+}
