@@ -98,7 +98,9 @@ export function freeSlots(
     const day = zoned(base, "UTC");
     const hours = settings.days[day.dow];
     if (!hours) continue;
-    for (let t = minutes(hours[0]); t + slot <= minutes(hours[1]); t += slot) {
+    // Each appointment takes `slot` minutes plus the break between them.
+    const step = slot + (settings.gap || 0);
+    for (let t = minutes(hours[0]); t + slot <= minutes(hours[1]); t += step) {
       const start = fromZoned(
         day.y,
         day.m,
@@ -124,4 +126,12 @@ export function slotLabel(iso, tz) {
 export function nowLabel(tz, now = new Date()) {
   const z = zoned(now, tz);
   return `${weekdays[z.dow]}, ${String(z.d).padStart(2, "0")}/${String(z.m).padStart(2, "0")}/${z.y}, ${String(z.hh).padStart(2, "0")}:${String(z.mm).padStart(2, "0")}`;
+}
+// "qua 11/11, das 14:00 às 15:00"
+export function rangeLabel(startIso, endIso, tz) {
+  const a = zoned(new Date(startIso), tz),
+    b = zoned(new Date(endIso), tz);
+  const hm = (z) =>
+    `${String(z.hh).padStart(2, "0")}:${String(z.mm).padStart(2, "0")}`;
+  return `${short[a.dow]} ${String(a.d).padStart(2, "0")}/${String(a.m).padStart(2, "0")}, das ${hm(a)} às ${hm(b)}`;
 }

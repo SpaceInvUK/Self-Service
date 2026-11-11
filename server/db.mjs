@@ -24,23 +24,29 @@ export function openDB(dir = process.env.DATA_DIR || "./data") {
   CREATE TABLE IF NOT EXISTS ai_usage(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),model TEXT NOT NULL,input_tokens INTEGER NOT NULL,output_tokens INTEGER NOT NULL,cost REAL,created TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS audit(id TEXT PRIMARY KEY,company_id TEXT,actor TEXT NOT NULL,action TEXT NOT NULL,detail TEXT NOT NULL,created TEXT NOT NULL);
   `);
+  db.exec(`
+  CREATE TABLE IF NOT EXISTS learned(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),kind TEXT NOT NULL,data TEXT NOT NULL,source TEXT NOT NULL DEFAULT 'owner',created TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS owner_questions(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),conversation_id TEXT REFERENCES conversations(id),customer_text TEXT NOT NULL,question TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'PENDENTE',answer TEXT,created TEXT NOT NULL,answered TEXT);
+  CREATE TABLE IF NOT EXISTS bookings(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),conversation_id TEXT REFERENCES conversations(id),start TEXT NOT NULL,end TEXT NOT NULL,service TEXT NOT NULL DEFAULT '',customer TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'PENDENTE',google_event_id TEXT,created TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS learn_pending(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),code TEXT NOT NULL,item TEXT NOT NULL,reason TEXT NOT NULL,team_message_id TEXT,status TEXT NOT NULL DEFAULT 'PENDENTE',created TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS google_accounts(company_id TEXT PRIMARY KEY REFERENCES companies(id),refresh_token TEXT NOT NULL,email TEXT,created TEXT NOT NULL);
+  `);
   // Later additions to existing installations.
   for (const [table, column] of [
     ["numbers", "pair_phone TEXT"],
     ["numbers", "pair_code TEXT"],
     ["companies", "settings TEXT NOT NULL DEFAULT '{}'"],
+    ["numbers", "team_jid TEXT"],
+    ["conversations", "handled_rowid INTEGER NOT NULL DEFAULT 0"],
+    ["owner_questions", "code TEXT"],
+    ["owner_questions", "team_message_id TEXT"],
+    ["owner_questions", "summary TEXT"],
   ])
     try {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column}`);
     } catch {
       /* column already exists */
     }
-  db.exec(`
-  CREATE TABLE IF NOT EXISTS learned(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),kind TEXT NOT NULL,data TEXT NOT NULL,source TEXT NOT NULL DEFAULT 'owner',created TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS owner_questions(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),conversation_id TEXT REFERENCES conversations(id),customer_text TEXT NOT NULL,question TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'PENDENTE',answer TEXT,created TEXT NOT NULL,answered TEXT);
-  CREATE TABLE IF NOT EXISTS bookings(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),conversation_id TEXT REFERENCES conversations(id),start TEXT NOT NULL,end TEXT NOT NULL,service TEXT NOT NULL DEFAULT '',customer TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'PENDENTE',google_event_id TEXT,created TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS google_accounts(company_id TEXT PRIMARY KEY REFERENCES companies(id),refresh_token TEXT NOT NULL,email TEXT,created TEXT NOT NULL);
-  `);
   return db;
 }
 export const q = (db, sql, ...params) => db.prepare(sql).all(...params);

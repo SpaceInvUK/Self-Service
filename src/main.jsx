@@ -806,11 +806,11 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
   const set = (k, v) => setSettings((s) => ({ ...s, [k]: v }));
   const setDay = (d, v) =>
     setSettings((s) => ({ ...s, days: { ...s.days, [d]: v } }));
-  async function sendOwner(text) {
+  async function sendOwner(text, questionId) {
     const r = await act(() =>
       api(`/companies/${cid}/owner/message`, {
         method: "POST",
-        body: { text },
+        body: { text, questionId },
       }),
     );
     if (r) {
@@ -844,13 +844,12 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
                 e.preventDefault();
                 const text = answers[q.id]?.trim();
                 if (!text) return;
-                const r = await sendOwner(
-                  `Sobre a pergunta "${q.question}" (o cliente perguntou "${q.customer_text}"): ${text}`,
-                );
+                const r = await sendOwner(text, q.id);
                 if (r) setAnswers((a) => ({ ...a, [q.id]: "" }));
               }}
             >
               <p>
+                <Badge tone="outline">#{q.code}</Badge>{" "}
                 <strong>{q.question}</strong>
                 <br />
                 <span className="muted small">
@@ -900,10 +899,56 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
             </Button>
           </form>
           <p className="muted small">
-            {data.ownerChannel
-              ? "Pelo celular: no WhatsApp conectado, abra a conversa com você mesmo (“Você”) e escreva lá. O assistente também faz as perguntas por ali."
-              : "Conecte o WhatsApp para o assistente perguntar e aprender pela conversa com você mesmo (“Você”)."}
+            {data.teamGroup
+              ? `Pelo celular: escreva no grupo “${settings.teamGroup}” do WhatsApp. O assistente também faz as perguntas por lá.`
+              : data.ownerChannel
+                ? `Grupo “${settings.teamGroup}” não encontrado: por enquanto o assistente usa a conversa com você mesmo (“Você”) no WhatsApp conectado.`
+                : "Conecte o WhatsApp para o assistente consultar a equipe por mensagem."}
           </p>
+          {data.pendingLearning.length > 0 && (
+            <>
+              <h3>Esperando sua confirmação</h3>
+              <ul className="learned-list">
+                {data.pendingLearning.map((l) => (
+                  <li key={l.id}>
+                    <span>
+                      <Badge tone="outline">#{l.code}</Badge>{" "}
+                      {l.item.kind === "product"
+                        ? `${l.item.nome}: ${BRL(l.item.preco * 100)}${l.item.unidade === "M2" ? " por m²" : ""}`
+                        : l.item.kind === "faq"
+                          ? `${l.item.pergunta} → ${l.item.resposta}`
+                          : l.item.texto}
+                      <br />
+                      <span className="muted small">{l.reason}</span>
+                    </span>
+                    <span className="row-actions">
+                      {[
+                        [true, "Salvar"],
+                        [false, "Descartar"],
+                      ].map(([keep, label]) => (
+                        <Button
+                          key={label}
+                          variant="secondary"
+                          onClick={() =>
+                            act(
+                              () =>
+                                api(`/companies/${cid}/learning/${l.id}`, {
+                                  method: "POST",
+                                  body: { keep },
+                                }),
+                              keep ? "Salvo." : "Descartado.",
+                            ).then(refresh)
+                          }
+                        >
+                          {label}
+                        </Button>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
           <h3>O que ele já aprendeu</h3>
           {data.learned.length ? (
             <ul className="learned-list">
@@ -959,13 +1004,13 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
             checked={settings.askOwner}
             onChange={(v) => set("askOwner", v)}
           >
-            Me perguntar quando não souber
+            Consultar a equipe quando não souber
           </Toggle>
           <Toggle
             checked={settings.notifyOwner}
             onChange={(v) => set("notifyOwner", v)}
           >
-            Me avisar no WhatsApp quando precisar de atendente
+            Avisar a equipe quando precisar de atendente
           </Toggle>
           <h3>Horário de funcionamento</h3>
           <Toggle
@@ -1029,6 +1074,67 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
               </select>
             </label>
           )}
+          {settings.booking && (
+            <label>
+              Intervalo entre agendamentos
+              <select
+                value={settings.gap}
+                onChange={(e) => set("gap", Number(e.target.value))}
+              >
+                {[0, 5, 10, 15, 30, 60].map((m) => (
+                  <option key={m} value={m}>
+                    {m ? `${m} minutos` : "Sem intervalo"}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <h3>Equipe no WhatsApp</h3>
+          <p className="muted small">
+            Crie um grupo no WhatsApp com o número conectado e as pessoas da
+            equipe. O assistente pergunta ali quando não souber, avisa reservas
+            e transferências e aprende com as respostas.
+          </p>
+          <label>
+            Nome do grupo
+            <input
+              value={settings.teamGroup}
+              onChange={(e) => set("teamGroup", e.target.value)}
+            />
+          </label>
+          <p className="muted small">
+            {data.teamGroup
+              ? "✅ Grupo encontrado."
+              : "Grupo ainda não encontrado no WhatsApp conectado."}
+          </p>
+          <label>
+            Tempo para a equipe responder antes de passar para um atendente
+            <select
+              value={settings.teamTimeout}
+              onChange={(e) => set("teamTimeout", Number(e.target.value))}
+            >
+              {[60, 120, 180, 300, 600].map((sec) => (
+                <option key={sec} value={sec}>
+                  {sec / 60} minuto{sec > 60 ? "s" : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Quem pode ensinar o assistente pelo grupo (um número com DDI e DDD
+            por linha; vazio = todos do grupo)
+            <textarea
+              rows={3}
+              value={(settings.authorized || []).join("\n")}
+              onChange={(e) =>
+                set(
+                  "authorized",
+                  e.target.value.split(/\n|,/).map((v) => v.trim()),
+                )
+              }
+              placeholder="5511987654321"
+            />
+          </label>
           {settings.booking && !settings.hoursSet && (
             <p className="error">
               Para agendar, ligue e preencha o horário de funcionamento.

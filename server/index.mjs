@@ -17,7 +17,7 @@ import {
   activeKnowledge,
 } from "./db.mjs";
 import { makeWorkbook, parseWorkbook, demoKnowledge } from "./workbook.mjs";
-import { reply } from "./engine.mjs";
+import { reply, needsHuman } from "./engine.mjs";
 import { aiReady, aiBase } from "./ai.mjs";
 import {
   settingsFor,
@@ -26,12 +26,18 @@ import {
   learnedFor,
   addMessage as addMsg,
   sendBot,
-  sendToOwner,
-  notifyOwnerHandoff,
+  sendToTeam,
+  notifyTeamHandoff,
   pendingQuestions,
-  handleOwnerMessage,
+  pendingLearning,
+  decideLearning,
+  handleTeamMessage,
+  expireQuestions,
+  setBookingStatus,
+  teamGroupNames,
   customerTurn,
   applyTurn,
+  norm,
 } from "./assistant.mjs";
 import {
   googleConfigured,
@@ -339,6 +345,14 @@ app.get(base + "/state", (req, res) => {
     settings: settingsFor(req.company),
     learned: learnedFor(db, cid),
     ownerQuestions: pendingQuestions(db, cid),
+    pendingLearning: pendingLearning(db, cid),
+    teamGroup: Boolean(
+      one(
+        db,
+        "SELECT 1 FROM numbers WHERE company_id=? AND team_jid IS NOT NULL",
+        cid,
+      ),
+    ),
     ownerChannel: Boolean(
       one(db, "SELECT 1 FROM numbers WHERE company_id=? AND phone<>''", cid),
     ),
@@ -406,15 +420,33 @@ app.put(base + "/settings", (req, res) => {
   audit(db, req.company.id, req.user.id, "settings.updated");
   res.json({ ok: true, settings: next });
 });
-// The owner answers the assistant or teaches it from the panel (the same
-// happens in the "message yourself" chat on WhatsApp).
+// The team answers the assistant or teaches it from the panel (the same
+// happens in the team WhatsApp group). Only admins teach from the panel.
 app.post(base + "/owner/message", async (req, res) => {
+  if (req.user.role !== "admin")
+    fail("Apenas o administrador ensina o assistente pelo painel.", 403);
   const body = text(req.body.text);
   if (!body) fail("Escreva uma mensagem.");
-  const r = await serialized("owner:" + req.company.id, () =>
-    handleOwnerMessage(db, req.company, body),
+  const r = await serialized("team:" + req.company.id, () =>
+    handleTeamMessage(db, req.company, body, {
+      quotedId: null,
+      questionId: text(req.body.questionId, 100) || null,
+    }),
   );
-  res.json(r);
+  res.json({
+    ownerReply:
+      r.report ||
+      "Preciso de uma confirmação: veja os itens aguardando abaixo.",
+    answered: r.answered,
+  });
+});
+app.post(base + "/learning/:id", (req, res) => {
+  if (req.user.role !== "admin") fail("Acesso não autorizado.", 403);
+  if (
+    !decideLearning(db, req.company.id, req.params.id, req.body.keep === true)
+  )
+    fail("Item não encontrado.", 404);
+  res.json({ ok: true });
 });
 app.delete(base + "/learned/:id", (req, res) => {
   run(
@@ -425,17 +457,16 @@ app.delete(base + "/learned/:id", (req, res) => {
   );
   res.json({ ok: true });
 });
-app.post(base + "/bookings/:id/status", (req, res) => {
+app.post(base + "/bookings/:id/status", async (req, res) => {
   if (!["CONFIRMADO", "CANCELADO"].includes(req.body.status))
     fail("Estado inválido.");
-  const r = run(
+  const b = await setBookingStatus(
     db,
-    "UPDATE bookings SET status=? WHERE id=? AND company_id=?",
-    req.body.status,
+    req.company,
     req.params.id,
-    req.company.id,
+    req.body.status,
   );
-  if (!r.changes) fail("Agendamento não encontrado.", 404);
+  if (!b) fail("Agendamento não encontrado.", 404);
   audit(db, req.company.id, req.user.id, "booking.status", req.body.status);
   res.json({ ok: true });
 });
@@ -687,9 +718,59 @@ async function serialized(id, fn) {
     if (locks.get(id) === task) locks.delete(id);
   }
 }
-async function processIncoming(c, input) {
-  addMessage(c, "customer", input);
-  if (c.status !== "BOT_ATIVO") return;
+// Consecutive customer messages are answered together: each new message
+// restarts a short wait; the reply covers every message not handled yet
+// (tracked by rowid, so nothing is lost or answered twice).
+const BATCH_MS = Number(process.env.BATCH_MS ?? 4000);
+const batchTimers = new Map();
+// Must be called inside serialized(c.id).
+function receive(c, body) {
+  addMessage(c, "customer", body);
+  if (c.status !== "BOT_ATIVO") {
+    markHandled(c.id);
+    return Promise.resolve();
+  }
+  const delay = c.mode === "simulation" ? Math.min(BATCH_MS, 1200) : BATCH_MS;
+  if (!delay) return respond(c.id);
+  scheduleReply(c.id, delay);
+  return Promise.resolve();
+}
+function scheduleReply(id, delay) {
+  clearTimeout(batchTimers.get(id));
+  batchTimers.set(
+    id,
+    setTimeout(() => {
+      batchTimers.delete(id);
+      serialized(id, () => respond(id)).catch((e) =>
+        console.error("Resposta não enviada:", e.message),
+      );
+    }, delay),
+  );
+}
+const markHandled = (id) =>
+  run(
+    db,
+    "UPDATE conversations SET handled_rowid=(SELECT COALESCE(MAX(rowid),0) FROM messages WHERE conversation_id=?) WHERE id=?",
+    id,
+    id,
+  );
+async function respond(id) {
+  const c = one(db, "SELECT * FROM conversations WHERE id=?", id);
+  if (!c || c.status !== "BOT_ATIVO" || c.mode === "owner") return;
+  const rows = q(
+    db,
+    "SELECT rowid,text FROM messages WHERE conversation_id=? AND role='customer' AND rowid>? ORDER BY rowid",
+    c.id,
+    c.handled_rowid,
+  );
+  if (!rows.length) return;
+  run(
+    db,
+    "UPDATE conversations SET handled_rowid=? WHERE id=?",
+    rows.at(-1).rowid,
+    c.id,
+  );
+  const input = rows.map((r) => r.text).join("\n");
   const company = one(db, "SELECT * FROM companies WHERE id=?", c.company_id),
     settings = settingsFor(company),
     k = knowledgeFor(db, company);
@@ -707,7 +788,7 @@ async function processIncoming(c, input) {
     if (quote)
       run(db, "UPDATE quotes SET status='ACEITO' WHERE id=?", quote.id);
     result = {
-      text: "Obrigado! Registrei seu aceite. Um atendente vai confirmar os próximos passos. O aceite ainda não representa pagamento ou venda confirmada.",
+      text: "Ótimo! Vou encaminhar seu pedido a um colega para finalizar. Isso ainda não confirma pagamento nem venda.",
       handoff: true,
       context: {},
     };
@@ -749,12 +830,23 @@ async function processIncoming(c, input) {
   // Everything else goes to the AI, which may also ask the owner or book;
   // without AI (or on failure) the deterministic answer is used.
   if (result.unknown || result.smalltalk) {
+    let turn = null;
     try {
-      const turn = await customerTurn(db, company, c, k, context);
-      if (turn) result = await applyTurn(db, company, c, input, turn);
+      turn = await customerTurn(db, company, c, k, context);
     } catch (e) {
       console.error("[IA] falha:", e.message);
     }
+    // Without AI (or if it fails) an unknown question still goes to the team
+    // before going to a person, as the rules ask.
+    if (!turn && result.unknown && !needsHuman(norm(input)))
+      turn = {
+        action: "ask_team",
+        teamQuestion: `Como responder: "${input.slice(0, 200)}"?`,
+        settings,
+        status: null,
+        slots: [],
+      };
+    if (turn) result = await applyTurn(db, company, c, input, turn, k);
   }
   const latest = conversation(c.company_id, c.id);
   if (latest.status !== "BOT_ATIVO") return;
@@ -796,7 +888,7 @@ async function processIncoming(c, input) {
       c.id,
     );
   });
-  if (result.handoff) notifyOwnerHandoff(db, company, c, input);
+  if (result.handoff) notifyTeamHandoff(db, company, c, input);
 }
 app.get(base + "/conversations/:id", (req, res) => {
   const c = conversation(req.company.id, req.params.id);
@@ -817,7 +909,7 @@ app.post(base + "/conversations/:id/message", async (req, res) => {
     if (c.mode !== "simulation")
       fail("Mensagens de clientes reais chegam pelo conector.");
     await serialized(c.id, () =>
-      processIncoming(conversation(c.company_id, c.id), body),
+      receive(conversation(c.company_id, c.id), body),
     );
   } else {
     if (c.status === "BOT_ATIVO")
@@ -840,6 +932,8 @@ app.post(base + "/conversations/:id/status", (req, res) => {
       now(),
       c.id,
     );
+    // Back to the bot: what the customer said to the person is not re-answered.
+    if (status === "BOT_ATIVO") markHandled(c.id);
     if (status !== "BOT_ATIVO") {
       run(
         db,
@@ -1016,9 +1110,24 @@ app.post("/api/connector/heartbeat", connector, (req, res) => {
     "SELECT pair_phone,pair_code FROM numbers WHERE id=?",
     req.number.id,
   );
+  // The connector looks for the team group by name and reports its id.
+  const teamJid = text(req.body.teamJid, 200);
+  if (req.body.teamJid !== undefined)
+    run(
+      db,
+      "UPDATE numbers SET team_jid=? WHERE id=?",
+      /@g\.us$/.test(teamJid) ? teamJid : null,
+      req.number.id,
+    );
+  const company = one(
+    db,
+    "SELECT settings FROM companies WHERE id=?",
+    req.number.company_id,
+  );
   res.json({
     ok: true,
     pairPhone: !online && !current.pair_code ? current.pair_phone : null,
+    teamGroups: teamGroupNames(settingsFor(company)),
   });
 });
 app.post("/api/connector/incoming", connector, async (req, res) => {
@@ -1027,10 +1136,8 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
     address = text(req.body.address, 200),
     body = text(req.body.text);
   if (!externalId || !address || !body) fail("Mensagem incompleta.");
-  if (!/@(s.whatsapp.net|lid)$/.test(address))
-    fail("Somente conversas individuais são suportadas.");
-  // The owner writing in the "message yourself" chat talks to the assistant.
-  if (req.body.owner === true) {
+  // The team group (or the "message yourself" chat) talks to the assistant.
+  if (req.body.team === true || req.body.owner === true) {
     if (
       one(
         db,
@@ -1042,12 +1149,40 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
       return res.json({ duplicate: true });
     run(db, "INSERT INTO inbound VALUES(?,?)", n.id, externalId);
     const company = one(db, "SELECT * FROM companies WHERE id=?", n.company_id);
-    await serialized("owner:" + company.id, async () => {
-      const r = await handleOwnerMessage(db, company, body);
-      sendToOwner(db, company.id, r.ownerReply);
+    const settings = settingsFor(company);
+    if (req.body.team === true) {
+      if (!n.team_jid || address !== n.team_jid)
+        return res.json({ ignored: true });
+      // Messages from the connected number itself are always authorized.
+      const senders = [req.body.sender, req.body.senderPn]
+        .map((v) =>
+          String(v || "")
+            .split("@")[0]
+            .split(":")[0]
+            .replace(/\D/g, ""),
+        )
+        .filter(Boolean);
+      const authorized =
+        req.body.fromMe === true ||
+        !settings.authorized.length ||
+        senders.some((p) => settings.authorized.includes(p));
+      if (!authorized) return res.json({ ignored: true });
+    }
+    await serialized("team:" + company.id, async () => {
+      const r =
+        req.body.document === true
+          ? {
+              report: `Recebi o arquivo "${body.slice(0, 120)}", mas ainda não consigo ler arquivos pelo WhatsApp. Para atualizar a base, importe a planilha pelo cAssistAI em Planilha.`,
+            }
+          : await handleTeamMessage(db, company, body, {
+              quotedId: text(req.body.quotedId, 200) || null,
+            });
+      if (r.report) sendToTeam(db, company.id, r.report);
     });
     return res.json({ ok: true });
   }
+  if (!/@(s.whatsapp.net|lid)$/.test(address))
+    fail("Somente conversas individuais são suportadas.");
   if (
     one(
       db,
@@ -1089,7 +1224,7 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
     )
       return;
     run(db, "INSERT INTO inbound VALUES(?,?)", n.id, externalId);
-    await processIncoming(conversation(n.company_id, c.id), body);
+    await receive(conversation(n.company_id, c.id), body);
   });
   res.json({ ok: true });
 });
@@ -1117,7 +1252,13 @@ app.post("/api/connector/ack", connector, (req, res) => {
   if (m.state !== "sending") return res.json({ ok: true });
   const state = req.body.ok === true ? "sent" : "uncertain";
   transaction(db, () => {
-    run(db, "UPDATE messages SET state=? WHERE id=?", state, m.id);
+    run(
+      db,
+      "UPDATE messages SET state=?,external_id=COALESCE(?,external_id) WHERE id=?",
+      state,
+      text(req.body.waId, 200) || null,
+      m.id,
+    );
     run(
       db,
       "UPDATE usage SET state=? WHERE message_id=?",
@@ -1152,6 +1293,21 @@ app.use((err, req, res, next) => {
         : err.message,
   });
 });
+// Team answers have a deadline; checked every 10 seconds.
+setInterval(() => {
+  try {
+    expireQuestions(db);
+  } catch (e) {
+    console.error("Prazo da equipe:", e.message);
+  }
+}, 10000).unref();
+// Messages that arrived just before a restart still get their reply.
+for (const c of q(
+  db,
+  "SELECT c.id FROM conversations c WHERE c.status='BOT_ATIVO' AND c.mode<>'owner' AND EXISTS (SELECT 1 FROM messages m WHERE m.conversation_id=c.id AND m.role='customer' AND m.rowid>c.handled_rowid AND m.created>?)",
+  new Date(Date.now() - 30 * 60000).toISOString(),
+))
+  scheduleReply(c.id, 2000);
 app.listen(port, host, () => {
   console.log(`cAssistAI disponível em http://${host}:${port}`);
   console.log(

@@ -61,18 +61,19 @@ async function accessToken(refreshToken) {
   });
   return t.access_token;
 }
-async function call(refreshToken, path, body) {
+async function call(refreshToken, path, body, method = "POST") {
   const r = await fetch(apiUrl() + path, {
-    method: "POST",
+    method,
     headers: {
       Authorization: `Bearer ${await accessToken(refreshToken)}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(15000),
   });
   const data = await r.json().catch(() => ({}));
-  if (!r.ok) throw Error(`Agenda do Google respondeu HTTP ${r.status}.`);
+  if (!r.ok && !(method === "DELETE" && r.status === 410))
+    throw Error(`Agenda do Google respondeu HTTP ${r.status}.`);
   return data;
 }
 export async function busyTimes(refreshToken, timeMin, timeMax) {
@@ -95,3 +96,17 @@ export async function createEvent(
   });
   return data.id;
 }
+export const updateEvent = (refreshToken, eventId, fields) =>
+  call(
+    refreshToken,
+    `/calendars/primary/events/${encodeURIComponent(eventId)}`,
+    fields,
+    "PATCH",
+  );
+export const deleteEvent = (refreshToken, eventId) =>
+  call(
+    refreshToken,
+    `/calendars/primary/events/${encodeURIComponent(eventId)}`,
+    null,
+    "DELETE",
+  );

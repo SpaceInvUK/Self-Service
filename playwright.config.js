@@ -13,7 +13,7 @@ export default defineConfig({
   },
   webServer: {
     command:
-      "node --input-type=module -e \"import {rmSync} from 'node:fs'; rmSync('/tmp/cassistai-e2e',{recursive:true,force:true})\" && NODE_ENV=production PORT=3100 DATA_DIR=/tmp/cassistai-e2e node server/index.mjs",
+      "node --input-type=module -e \"import {rmSync} from 'node:fs'; rmSync('/tmp/cassistai-e2e',{recursive:true,force:true})\" && NODE_ENV=production BATCH_MS=0 PORT=3100 DATA_DIR=/tmp/cassistai-e2e node server/index.mjs",
     url: "http://127.0.0.1:3100/api/health",
     reuseExistingServer: false,
     timeout: 30000,

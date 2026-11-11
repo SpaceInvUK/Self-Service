@@ -145,3 +145,50 @@ test("business hours: open status, next opening and free slots", async () => {
   ]);
   assert.equal(openStatus({ ...s, hoursSet: false }, night), null);
 });
+test("quotes show the calculation and respect the minimum", async () => {
+  const { quoteFor } = await import("../server/engine.mjs");
+  const lona = {
+    codigo: "L1",
+    nome: "Lona",
+    preco: 10,
+    unidade: "M2",
+    minimo: 0,
+    entrada: null,
+    prazo: "",
+  };
+  const plain = (t) => t.replace(/\u00a0/g, " ");
+  const r = quoteFor({ conditions: [] }, lona, 1, 2, 1);
+  assert.equal(r.quote.total, 2000);
+  assert.ok(plain(r.text).includes("2 m² × R$ 10,00/m² = R$ 20,00"));
+  const min = quoteFor({ conditions: [] }, { ...lona, minimo: 50 }, 1, 1, 1);
+  assert.equal(min.quote.total, 5000);
+  assert.ok(
+    plain(min.text).includes("= R$ 10,00\nValor mínimo aplicado: R$ 50,00"),
+  );
+});
+test("closing an order goes to a person; hours rule is not triggered by 'fechar'", () => {
+  assert.equal(reply(demoKnowledge, "quero fechar o pedido").handoff, true);
+  const k = structuredClone(demoKnowledge);
+  k.company.horario = "Seg a sex, 8h às 18h";
+  assert.equal(reply(k, "que horas vocês abrem?").text, k.company.horario);
+  assert.notEqual(
+    reply(k, "vocês fecham a loja no feriado?").text,
+    k.company.horario,
+  );
+});
+test("team settings: group names and validation", async () => {
+  const { settingsFor, cleanSettings, teamGroupNames } =
+    await import("../server/assistant.mjs");
+  const s = settingsFor({ settings: "{}" });
+  assert.equal(s.teamTimeout, 120);
+  assert.deepEqual(teamGroupNames(s), ["cassist", "kassist"]);
+  assert.deepEqual(teamGroupNames({ teamGroup: "Equipe Loja" }), [
+    "equipeloja",
+  ]);
+  const next = cleanSettings(
+    { authorized: ["+55 (11) 98765-4321", "123"], teamTimeout: 300 },
+    s,
+  );
+  assert.deepEqual(next.authorized, ["5511987654321"]);
+  assert.throws(() => cleanSettings({ teamTimeout: 5 }, s));
+});

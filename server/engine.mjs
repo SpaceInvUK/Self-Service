@@ -50,6 +50,7 @@ const humanPatterns = [
   /\b(reembolso|estorno|dinheiro de volta|devolver o dinheiro|devolucao|cancelar|cancelamento)\b/,
   /\b(reclamacao|reclamar|procon|defeito|veio errado|chegou errado|nao chegou|quebrad[oa]|estragad[oa])\b/,
   /\b(desconto|negociar|parcelar|parcelamento)\b/,
+  /\b(fechar|finalizar|confirmar) (o |meu |esse |este )?pedido\b/,
 ];
 export const needsHuman = (t) => humanPatterns.some((r) => r.test(t));
 const greetingWords =
@@ -71,13 +72,13 @@ export function reply(knowledge, text, context = {}) {
     products = knowledge.products.filter((p) => p.ativo);
   if (needsHuman(t))
     return {
-      text: "Entendi. Vou chamar um atendente para cuidar disso com você, só um instante.",
+      text: "Vou encaminhar sua conversa a um colega para continuar o atendimento.",
       handoff: true,
       context: {},
     };
   if (isGreeting(t))
     return {
-      text: `${/tudo|td|como vai|blz|beleza/.test(t) ? "Oi! Tudo bem sim, e com você?" : "Olá!"} Sou o assistente da ${knowledge.company.nome}. Posso tirar dúvidas e fazer orçamentos. Como posso ajudar?`,
+      text: `${/tudo|td|como vai|blz|beleza/.test(t) ? "Oi! Tudo bem sim, e com você?" : "Olá!"} Como posso ajudar?`,
       smalltalk: true,
       context,
     };
@@ -91,14 +92,15 @@ export function reply(knowledge, text, context = {}) {
       smalltalk: true,
       context,
     };
-  if (/horario|abre|fecha/.test(t))
-    return {
-      text:
-        knowledge.company.horario ||
-        "O horário não foi informado. Vou chamar um atendente para confirmar.",
-      handoff: !knowledge.company.horario,
-      context,
-    };
+  // Only clear questions about opening hours, and only when the hours are
+  // registered; otherwise the conversation (AI or team) handles it.
+  if (
+    knowledge.company.horario &&
+    /\b(horario de (funcionamento|atendimento)|que horas (voces )?(abrem|abre|fecham|fecha)|(abrem|abre|fecham|fecha) que horas|ate que horas|esta aberto|estao abertos|abre hoje|abrem hoje)\b/.test(
+      t,
+    )
+  )
+    return { text: knowledge.company.horario, faq: true, context };
   if (/catalogo|produtos|opcoes/.test(t))
     return {
       text: products.length
@@ -203,31 +205,48 @@ export function reply(knowledge, text, context = {}) {
           context: { product: product.codigo, quantity },
         };
     }
-    try {
-      const calculated = calculate(product, quantity, width, height);
-      return {
-        text: `Seu orçamento:\n${quantity} × ${product.nome}${product.unidade === "M2" ? ` (${width} × ${height} m por peça)` : ""}\nTotal: ${money(calculated.total)}${calculated.deposit === null ? "" : `\nEntrada (${product.entrada}%): ${money(calculated.deposit)}`}\nPrazo: ${product.prazo || "a confirmar com um atendente"}.\n${knowledge.conditions.map((c) => c.valor).join("\n")}\nDeseja aceitar este orçamento?`,
-        quote: {
-          product: product.nome,
-          quantity,
-          ...calculated,
-          conditions: JSON.stringify({
-            prazo: product.prazo,
-            width,
-            height,
-            conditions: knowledge.conditions,
-          }),
-        },
-        context: { awaitingAcceptance: true },
-      };
-    } catch (e) {
-      return { text: e.message, context: { product: product.codigo } };
-    }
+    return quoteFor(knowledge, product, quantity, width, height);
   }
   return {
     unknown: true,
-    text: "Não encontrei uma informação segura na base da empresa. Vou encaminhar sua dúvida a um atendente.",
+    text: "Não tenho essa informação confirmada. Vou encaminhar sua conversa a um colega para continuar o atendimento.",
     handoff: true,
     context: {},
   };
+}
+const num = (v) => String(Math.round(v * 1000) / 1000).replace(".", ",");
+// A quote computed only from the registered rules, showing the calculation.
+export function quoteFor(knowledge, product, quantity, width, height) {
+  try {
+    const calculated = calculate(product, quantity, width, height);
+    const unit = money(Math.round(product.preco * 100));
+    const area = product.unidade === "M2" ? width * height * quantity : null;
+    // The calculation shown is the real one; the minimum is stated apart.
+    const raw = calculate({ ...product, minimo: 0 }, quantity, width, height);
+    const line =
+      area === null
+        ? `${quantity} × ${product.nome} (${unit} cada) = ${money(raw.total)}`
+        : `${product.nome}: ${quantity} peça${quantity > 1 ? "s" : ""} de ${num(width)} × ${num(height)} m = ${num(area)} m² × ${unit}/m² = ${money(raw.total)}`;
+    const minimum =
+      calculated.total > raw.total
+        ? `\nValor mínimo aplicado: ${money(calculated.total)}.`
+        : "";
+    return {
+      text: `Orçamento:\n${line}${minimum}${calculated.deposit === null ? "" : `\nEntrada (${product.entrada}%): ${money(calculated.deposit)}`}\nPrazo: ${product.prazo || "a confirmar com a equipe"}.${knowledge.conditions.length ? "\n" + knowledge.conditions.map((c) => c.valor).join("\n") : ""}\nQuer seguir com o pedido?`,
+      quote: {
+        product: product.nome,
+        quantity,
+        ...calculated,
+        conditions: JSON.stringify({
+          prazo: product.prazo,
+          width,
+          height,
+          conditions: knowledge.conditions,
+        }),
+      },
+      context: { awaitingAcceptance: true },
+    };
+  } catch (e) {
+    return { text: e.message, context: { product: product.codigo } };
+  }
 }

@@ -66,18 +66,18 @@ Simulações são identificadas e não consomem a franquia comercial. Se uma IA 
 - Cadastro/revogação de conectores, QR real quando fornecido pelo conector e estado por heartbeat.
 - Marca de cassis, interface responsiva e dados persistidos em SQLite.
 
-## Assistente: ensinar, perguntar ao dono e agendar
+## Assistente: equipe, aprendizado e agenda
 
-- **Sem planilha também funciona.** No cadastro você informa o nome do negócio. O assistente aprende com você na tela **Assistente** (campo "Ensine o assistente") ou pelo WhatsApp.
-- **Conversa com você mesmo no WhatsApp.** No número conectado, abra a conversa "Você" (mensagem para si mesmo). Ali o assistente:
-  - pergunta quando um cliente quer saber algo que ele não sabe (ex.: "Vocês vendem banana?"). Você responde do seu jeito ("não vendemos fruta"), ele responde o cliente e guarda a informação;
-  - aprende o que você mandar a qualquer momento ("bolo de cenoura 30 reais");
-  - avisa quando uma conversa precisa de atendente e quando marca um horário.
-  As mesmas perguntas aparecem na tela **Assistente**, para responder pelo painel.
-- **O que ele faz sozinho:** liga/desliga para tirar dúvidas, fazer orçamentos, fazer agendamentos, perguntar ao dono e avisar o dono. Função desligada = o assistente passa para um atendente.
-- **Horário de funcionamento:** fora do horário, o assistente continua respondendo e avisa quando a empresa abre.
-- **Agendamentos:** com horário de funcionamento preenchido, o assistente oferece só horários livres, marca como "a confirmar" e avisa você. Confirme ou cancele na tela **Agenda**.
-- Precisa da IA (Groq) para conversar, perguntar ao dono e agendar. Sem IA: respostas fixas pela planilha e pelo que você ensinou, e o resto vai para o atendente.
+Regras completas do atendimento: [docs/prompt-assistente.md](docs/prompt-assistente.md).
+
+- **Grupo da equipe no WhatsApp.** Crie um grupo chamado **cAssist** (ou "K Assist", ou o nome que você configurar em Assistente → Equipe no WhatsApp) com o número conectado e as pessoas da equipe. O app encontra o grupo sozinho. Sem o grupo, ele usa a conversa "Você" (mensagem para si mesmo) do número conectado.
+- **Quando não souber,** o assistente diz ao cliente "Vou confirmar essa informação com a equipe. Um instante, por favor." e pergunta no grupo com um código (ex.: `#K7QD`). Responda **citando a mensagem** ou começando com o código. Se ninguém responder em 2 minutos (configurável), a conversa vai para um atendente e o assistente fica pausado nela até alguém clicar em "Devolver ao bot".
+- **Aprendizado:** só de pessoas autorizadas (lista de números; vazia = todos do grupo). O app separa regra permanente de resposta só para um cliente, não salva descontos excepcionais como regra, e pergunta ("sim #CODE"/"não #CODE") quando não está claro ou quando a informação contradiz o que já existe. O app só diz "Salvei" depois de salvar. Também dá para ensinar e confirmar pela tela **Assistente**.
+- **Mensagens seguidas** do cliente são respondidas juntas (espera de 4 s; `BATCH_MS` no `.env`).
+- **Orçamentos:** a IA identifica produto, quantidade e medidas; o app calcula com as regras cadastradas e mostra a conta (ex.: `2 m² × R$ 10,00/m² = R$ 20,00`), com mínimo e entrada. Fechar pedido vai para um atendente.
+- **Agendamentos:** com horário de funcionamento, duração e intervalo cadastrados, o assistente oferece só horários livres (incluindo os ocupados no Google Agenda, se conectado), pergunta "Posso reservar provisoriamente…?" e só depois do "sim" reserva: "Reservei provisoriamente qua 11/11, das 14:00 às 15:00. A equipe ainda vai confirmar." Confirmar ou cancelar na tela **Agenda** avisa o cliente e atualiza o Google.
+- **Liga/desliga:** dúvidas, orçamentos, agendamentos, consultar a equipe e avisar a equipe. Desligado = passa para um atendente.
+- Precisa da IA (Groq) para conversar de forma natural. Sem IA: respostas pela planilha e pelo que foi ensinado; o que não souber vai para a equipe e, sem resposta, para um atendente.
 
 ### Google Agenda (opcional)
 

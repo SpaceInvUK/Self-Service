@@ -64,9 +64,49 @@ async function api(path, body) {
 }
 let pairCode = null,
   pairedFor = null,
-  qrSeen = false;
+  qrSeen = false,
+  teamNames = [],
+  teamJid = null,
+  groupsCheckedAt = 0;
+const groupKey = (name) =>
+  String(name || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\s/g, "");
+// Finds the team group (by the name set in the panel) among this number's groups.
+async function findTeamGroup(force = false) {
+  if (status !== "online" || !socket || !teamNames.length) return;
+  if (!force && Date.now() - groupsCheckedAt < 5 * 60000) return;
+  groupsCheckedAt = Date.now();
+  try {
+    const groups = Object.values(await socket.groupFetchAllParticipating());
+    const found = groups.find((g) => teamNames.includes(groupKey(g.subject)));
+    const next = found?.id || null;
+    if (next !== teamJid)
+      console.log(
+        next
+          ? `Grupo da equipe encontrado: ${found.subject}.`
+          : "Grupo da equipe não encontrado; usando a conversa com você mesmo.",
+      );
+    teamJid = next;
+  } catch (e) {
+    console.error("Não foi possível listar os grupos:", e.message);
+  }
+}
 async function heartbeat() {
-  const r = await api("heartbeat", { status, qr, phone, pairCode });
+  const r = await api("heartbeat", {
+    status,
+    qr,
+    phone,
+    pairCode,
+    ...(status === "online" ? { teamJid: teamJid || "" } : {}),
+  });
+  const names = Array.isArray(r.teamGroups) ? r.teamGroups : [];
+  if (names.join() !== teamNames.join()) {
+    teamNames = names;
+    await findTeamGroup(true);
+  } else await findTeamGroup();
   // The panel asked to connect by phone number instead of QR code.
   if (
     r.pairPhone &&
@@ -141,10 +181,42 @@ async function connect() {
       console.error(e.message);
     }
   });
+  // Group renamed or the number added to a group: look for the team group again.
+  socket.ev.on("groups.upsert", () => findTeamGroup(true));
+  socket.ev.on("groups.update", () => findTeamGroup(true));
   socket.ev.on("messages.upsert", async ({ messages, type }) => {
     for (const m of messages) {
       const jid = m.key.remoteJid;
-      if (!jid || !/@(s.whatsapp.net|lid)$/.test(jid) || !m.key.id) continue;
+      if (!jid || !m.key.id) continue;
+      // Team group: messages from members (and the owner on this number).
+      if (teamJid && jid === teamJid) {
+        if (m.key.fromMe && sentByBot.has(m.key.id)) continue;
+        const ts = Number(m.messageTimestamp || 0) * 1000;
+        if (ts && ts < startedAt - 60000) continue;
+        const content = m.message?.ephemeralMessage?.message || m.message;
+        const doc =
+          content?.documentMessage ||
+          content?.documentWithCaptionMessage?.message?.documentMessage;
+        const text =
+          content?.conversation ||
+          content?.extendedTextMessage?.text ||
+          (doc ? doc.fileName || "arquivo" : "");
+        if (!text) continue;
+        incoming[m.key.id] = {
+          id: m.key.id,
+          address: jid,
+          team: true,
+          fromMe: Boolean(m.key.fromMe),
+          sender: m.key.participant || "",
+          senderPn: m.key.participantPn || m.key.participantAlt || "",
+          quotedId: content?.extendedTextMessage?.contextInfo?.stanzaId || "",
+          document: Boolean(doc),
+          text,
+        };
+        persist(inboxPath, incoming);
+        continue;
+      }
+      if (!/@(s.whatsapp.net|lid)$/.test(jid)) continue;
       // "Message yourself" chat = the owner talking to the assistant. Skip
       // what the assistant itself sent there and anything from before start.
       const owner = m.key.fromMe && isSelf(jid);
@@ -224,7 +296,7 @@ async function poll() {
         if (sentByBot.size > 500)
           sentByBot.delete(sentByBot.values().next().value);
         await socket.sendMessage(m.address, { text: m.text }, { messageId });
-        delivered[m.id] = { id: m.id, ok: true };
+        delivered[m.id] = { id: m.id, ok: true, waId: messageId };
         persist(statePath, delivered);
       } catch {
         console.error("Envio sem confirmação; requer verificação humana.");
