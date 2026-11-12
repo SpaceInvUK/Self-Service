@@ -423,9 +423,33 @@ A marca foi gerada com três cassis e folha verde. O usuário pode alterar o nom
 
 Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da central, conector local, identidade, Excel e testes. O conteúdo dos chats prioritários continua pendente de acesso; sua equivalência funcional não é afirmada.
 
+### Situação atual e próximos passos
+
+Atualizado em 13/11/2026.
+
+| Item | Situação |
+|---|---|
+| App no computador (Windows) | `Iniciar cAssistAI.bat`, com atualização automática pelo GitHub |
+| Servidor online | Oracle Cloud (Always Free) e DuckDNS configurados pelo proprietário em 12/11; instalação feita com outra conversa (Chrome). **Funcionamento do site ainda não conferido**: o endereço não ficou registrado no projeto |
+| IA | Groq (plano gratuito) |
+| WhatsApp, Groq e Google reais | Ainda não testados de ponta a ponta |
+
+Próximos passos:
+1. Conferir o site online (endereço .duckdns.org, cadeado, tela de cadastro).
+2. Criar a conta com o código de instalação e colocar a chave do Groq no servidor, se ainda não estiver.
+3. Conectar o WhatsApp pelo código de 8 letras e criar o grupo "cAssist" com a equipe.
+4. Testar com conversas reais: dúvida, orçamento, pergunta à equipe, áudio, agendamento.
+5. Depois: Google Agenda online (cliente OAuth "Aplicativo da Web"), leitura de planilhas enviadas no grupo, aparência.
+
 ### Registro de alterações
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
+
+**13/11/2026 — conferência da situação e regra do registro**
+
+- O proprietário pediu que este arquivo seja atualizado a cada alteração ou acontecimento. Regra gravada em `CLAUDE.md`, lido no início de toda conversa sobre o projeto.
+- Conferido: o GitHub não recebeu alterações depois da versão 0.9; o endereço do servidor online não foi registrado, então o site ainda não pôde ser verificado.
+- Criada a seção "Situação atual e próximos passos".
 
 **0.9 — 12/11/2026 — instalação online (Oracle Cloud + DuckDNS)**
 
