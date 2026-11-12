@@ -312,7 +312,7 @@ function Auth({ session, onDone }) {
             </label>
             {session.needsSetup && session.setupTokenRequired && (
               <label>
-                Token de instalação
+                Código de instalação
                 <input name="setupToken" type="password" required />
               </label>
             )}

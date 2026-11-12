@@ -58,6 +58,14 @@ const host = process.env.HOST || "127.0.0.1",
 const production = process.env.NODE_ENV === "production";
 const localCentral = `http://${["0.0.0.0", "::"].includes(host) ? "127.0.0.1" : host}:${port}`;
 app.disable("x-powered-by");
+// Behind the HTTPS proxy on an online server (Caddy on the same machine), the
+// client address comes in X-Forwarded-For.
+if (process.env.TRUST_PROXY === "true") app.set("trust proxy", "loopback");
+// Online, the first account needs the installation code: anyone could open
+// the address before the owner. Locally (127.0.0.1 only) it is not needed.
+const setupTokenRequired = () =>
+  Boolean(process.env.SETUP_TOKEN) ||
+  !["127.0.0.1", "localhost", "::1"].includes(host);
 app.use(
   helmet({
     contentSecurityPolicy: production
@@ -231,7 +239,7 @@ app.get("/api/session", (req, res) =>
   res.json({
     user: userFrom(req),
     needsSetup: !one(db, "SELECT 1 FROM users LIMIT 1"),
-    setupTokenRequired: !["127.0.0.1", "localhost", "::1"].includes(host),
+    setupTokenRequired: setupTokenRequired(),
     aiConfigured: aiReady(),
     localConnectors: localConnectorsEnabled,
   }),
@@ -240,11 +248,14 @@ app.post("/api/setup", authLimiter, (req, res) => {
   if (one(db, "SELECT 1 FROM users LIMIT 1"))
     fail("A conta administradora já foi criada.", 409);
   if (
-    !["127.0.0.1", "localhost", "::1"].includes(host) &&
+    setupTokenRequired() &&
     (!process.env.SETUP_TOKEN ||
       req.body.setupToken !== process.env.SETUP_TOKEN)
   )
-    fail("Informe o token de instalação configurado no servidor.", 403);
+    fail(
+      "Informe o código de instalação (aparece no fim da instalação do servidor).",
+      403,
+    );
   const { email, password } = credentials(req.body),
     name = text(req.body.name, 100);
   if (!name) fail("Informe seu nome.");
@@ -481,7 +492,9 @@ app.post(base + "/bookings/:id/status", async (req, res) => {
 });
 // Google Calendar: OAuth with a loopback redirect to this computer.
 const googleStates = new Map();
-const googleRedirect = () => `${localCentral}/api/google/callback`;
+// On an online server Google returns to the public address (PUBLIC_URL).
+const googleRedirect = () =>
+  `${(process.env.PUBLIC_URL || localCentral).replace(/\/$/, "")}/api/google/callback`;
 app.get(base + "/google/connect", (req, res) => {
   if (req.user.role !== "admin") fail("Acesso não autorizado.", 403);
   if (!googleConfigured())

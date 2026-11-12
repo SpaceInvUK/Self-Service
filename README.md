@@ -66,6 +66,21 @@ Simulações são identificadas e não consomem a franquia comercial. Se uma IA 
 - Cadastro/revogação de conectores, QR real quando fornecido pelo conector e estado por heartbeat.
 - Marca de cassis, interface responsiva e dados persistidos em SQLite.
 
+## Online, sem precisar de computador ligado
+
+Num servidor Ubuntu 22.04/24.04 (ex.: Oracle Cloud "Always Free", VM.Standard.A1.Flex) com as portas 80 e 443 liberadas na rede e um endereço apontando para o IP dele (ex.: DuckDNS), rode no servidor:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/SpaceInvUK/Self-Service/claude/amazing-fermi-nrlr4z/scripts/install-server.sh | sudo bash -s -- minhaloja.duckdns.org
+```
+
+O instalador ([scripts/install-server.sh](scripts/install-server.sh)) instala Node.js 24, o app, o HTTPS automático (Caddy + Let's Encrypt), libera 80/443 no firewall interno, cria o serviço `cassistai` (sempre ligado, reinicia sozinho), cópia de segurança diária em `/var/backups/cassistai` (14 dias) e atualização automática pelo GitHub a cada 30 minutos. Pede a chave do Groq (opcional) e, no fim, mostra o **código de instalação** exigido para criar a primeira conta. Depois é só abrir `https://minhaloja.duckdns.org` no celular ou no computador.
+
+- Configuração: `sudo nano /opt/cassistai/.env` e `sudo systemctl restart cassistai`.
+- Ver o que o app está fazendo: `sudo journalctl -u cassistai -f`.
+- Dados: `/var/lib/cassistai` (banco e sessões do WhatsApp).
+- Google Agenda online: crie o cliente OAuth do tipo **Aplicativo da Web** com o redirecionamento `https://SEU-ENDERECO/api/google/callback` (o tipo "App para computador" só serve no modo local).
+
 ## Assistente: equipe, aprendizado e agenda
 
 Regras completas do atendimento: [docs/prompt-assistente.md](docs/prompt-assistente.md).

@@ -427,6 +427,13 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**0.9 — 12/11/2026 — instalação online (Oracle Cloud + DuckDNS)**
+
+- Pedido do proprietário: usar pelo celular e pelo computador sem precisar de um computador ligado, do jeito mais barato. Escolhas: servidor Oracle Cloud "Always Free" e endereço grátis do DuckDNS; HTTPS grátis com Caddy + Let's Encrypt; Groq continua grátis.
+- `scripts/install-server.sh` (um comando): Node.js 24, app em `/opt/cassistai` (clone do GitHub, usuário de sistema `cassist`), dados em `/var/lib/cassistai`, serviço systemd `cassistai`, Caddy com HTTPS para o domínio informado, portas 80/443 no iptables do servidor (as imagens da Oracle bloqueiam por padrão), backup diário do banco e das sessões do WhatsApp (14 dias), atualização automática pelo GitHub a cada 30 min (com backup antes) e `.env` com `PUBLIC_URL`, `COOKIE_SECURE`, `TRUST_PROXY`, `SETUP_TOKEN` e o modo local de conectores (o WhatsApp roda no próprio servidor).
+- App: com `SETUP_TOKEN` definido, a primeira conta exige o código de instalação (antes só era exigido quando o servidor escutava fora de 127.0.0.1; atrás do Caddy ele escuta em 127.0.0.1); `TRUST_PROXY=true` lê o IP do cliente pelo proxy; `PUBLIC_URL` define o retorno do Google Agenda online.
+- Verificado: sintaxe do instalador, geração dos scripts de backup e atualização, instalação só com dependências de produção e build, exigência do código e cookie `Secure`. Não verificado: execução do instalador num servidor Oracle real.
+
 **0.8 — 11/11/2026 — áudios do WhatsApp**
 
 - Pedido do proprietário: dar instruções ao bot por áudio no WhatsApp para ele aprender, como faria por texto.
