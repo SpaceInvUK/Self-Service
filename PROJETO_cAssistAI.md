@@ -425,25 +425,33 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 ### Situação atual e próximos passos
 
-Atualizado em 13/11/2026.
+Atualizado em 17/11/2026.
 
 | Item | Situação |
 |---|---|
-| App no computador (Windows) | `Iniciar cAssistAI.bat`, com atualização automática pelo GitHub |
-| Servidor online | Oracle Cloud (Always Free) e DuckDNS configurados pelo proprietário em 12/11; instalação feita com outra conversa (Chrome). **Funcionamento do site ainda não conferido**: o endereço não ficou registrado no projeto |
-| IA | Groq (plano gratuito) |
+| Site online | **https://cassistai.duckdns.org** no ar (Oracle Cloud Always Free + DuckDNS), HTTPS válido até 10/02/2027 (renovação automática), http redireciona para https, versão mais recente do painel |
+| Conta administradora | Já criada (o cadastro inicial está fechado) |
+| IA (Groq) | Chave configurada no servidor |
+| WhatsApp no servidor | Modo de conexão local ativo; conexão de um número ainda não conferida |
+| App no computador (Windows) | `Iniciar cAssistAI.bat`, com atualização automática |
 | WhatsApp, Groq e Google reais | Ainda não testados de ponta a ponta |
 
 Próximos passos:
-1. Conferir o site online (endereço .duckdns.org, cadeado, tela de cadastro).
-2. Criar a conta com o código de instalação e colocar a chave do Groq no servidor, se ainda não estiver.
-3. Conectar o WhatsApp pelo código de 8 letras e criar o grupo "cAssist" com a equipe.
-4. Testar com conversas reais: dúvida, orçamento, pergunta à equipe, áudio, agendamento.
-5. Depois: Google Agenda online (cliente OAuth "Aplicativo da Web"), leitura de planilhas enviadas no grupo, aparência.
+1. Entrar no site pelo celular e conectar o WhatsApp (WhatsApp → Adicionar → "Conectar com um código").
+2. Criar no WhatsApp o grupo "cAssist" com o número conectado e a equipe.
+3. Testar com conversas reais: dúvida, orçamento, pergunta à equipe, áudio, agendamento.
+4. Depois: Google Agenda online (cliente OAuth "Aplicativo da Web"), modelos por ramo, lembretes de agendamento, visual.
 
 ### Registro de alterações
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
+
+**17/11/2026 — site online conferido**
+
+- O endereço não estava registrado; testados nomes prováveis no DuckDNS. O site é https://cassistai.duckdns.org.
+- Verificado de fora: certificado HTTPS válido para o domínio (até 10/02/2027), redirecionamento de http para https, página do cAssistAI, `/api/health` ok, conta administradora já criada, código de instalação exigido, IA configurada, modo de conexão local do WhatsApp ativo, e o painel publicado é idêntico ao do código mais recente (atualização automática funcionando).
+- Não verificado: login, números de WhatsApp conectados e conversas (exigem a conta do proprietário).
+- Proprietário pediu que tudo seja feito de forma automática sempre que possível, avisando aqui quando precisar de algo no computador dele.
 
 **13/11/2026 — conferência da situação e regra do registro**
 
