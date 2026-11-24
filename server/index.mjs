@@ -29,6 +29,7 @@ import {
   sendToTeam,
   notifyTeamHandoff,
   pendingQuestions,
+  recentQuestions,
   pendingLearning,
   decideLearning,
   handleTeamMessage,
@@ -374,6 +375,7 @@ app.get(base + "/state", (req, res) => {
     settings: settingsFor(req.company),
     learned: learnedFor(db, cid),
     ownerQuestions: pendingQuestions(db, cid),
+    recentQuestions: recentQuestions(db, cid),
     pendingLearning: pendingLearning(db, cid),
     teamGroup: Boolean(
       one(

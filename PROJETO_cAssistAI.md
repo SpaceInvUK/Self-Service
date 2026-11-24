@@ -459,6 +459,14 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.1 — 24/11/2026 — resposta da equipe sempre volta ao cliente**
+
+- Teste real do proprietário: o bot perguntava no grupo, mas a resposta da equipe não chegava ao cliente. Causas possíveis pelo código (os dados do servidor não puderam ser consultados): prazo de 2 min vencido antes da resposta (a resposta era descartada); resposta sem citar a mensagem não ligada à pergunta; IA entendendo que não resolvia.
+- Agora: resposta depois do prazo também vai ao cliente e a conversa volta para o assistente, desde que nenhum atendente tenha assumido; com uma única pergunta aberta, a resposta do grupo vale para ela mesmo sem citar ou sem código; a mensagem ao cliente sempre começa com "Obrigado por aguardar!"; o grupo recebe a confirmação com o texto enviado; o aviso de prazo vencido explica que ainda dá para responder.
+- Tela Assistente: "Últimas perguntas à equipe", com a situação de cada uma (aguardando, cliente respondido, passou do prazo, com atendente). "Respondida" só quando o cliente recebeu.
+- Verificado: testes unitários (18, com um novo para resposta depois do prazo) e de navegador (2); roteiro por API com IA simulada: resposta a tempo sem citar, resposta depois do prazo (cliente recebe e conversa volta ao bot), conversa já assumida por atendente (nada enviado e situação "com atendente").
+- Não verificado: com WhatsApp e Groq reais.
+
 **1.0 — 24/11/2026 — modo teste por contatos e grupo de ensino que se apresenta**
 
 - Contexto: o proprietário tem um único número e vai testar com ele. Explicado o risco da conexão não oficial (regras de mensagens do WhatsApp proíbem clientes não oficiais e automação usados para prejudicar; bloqueios costumam vir de spam) e que a API oficial da Meta com "coexistência" mantém o mesmo número no WhatsApp Business. Decisão: testar com o número atual, em modo teste.

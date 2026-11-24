@@ -1030,6 +1030,45 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
           ))}
         </section>
       )}
+      {data.recentQuestions?.length > 0 && (
+        <section className="panel settings-card owner-questions">
+          <h2>Últimas perguntas à equipe</h2>
+          <ul className="learned-list">
+            {data.recentQuestions.map((q) => (
+              <li key={q.code + q.created}>
+                <span>
+                  <Badge tone="outline">#{q.code}</Badge> {q.question}
+                  <br />
+                  <span className="muted small">
+                    {q.contact || "Cliente"} · {date(q.created)}{" "}
+                    {time(q.created)}
+                    {q.answer
+                      ? ` · resposta da equipe: “${q.answer.slice(0, 120)}”`
+                      : ""}
+                  </span>
+                </span>
+                <Badge
+                  tone={
+                    q.status === "RESPONDIDA"
+                      ? "green"
+                      : q.status === "PENDENTE"
+                        ? "outline"
+                        : "neutral"
+                  }
+                >
+                  {q.status === "RESPONDIDA"
+                    ? "Cliente respondido"
+                    : q.status === "PENDENTE"
+                      ? "Aguardando a equipe"
+                      : q.status === "COM_ATENDENTE"
+                        ? "Com atendente"
+                        : "Passou do prazo"}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <div className="settings-grid">
         <section className="panel settings-card">
           <h2>Ensine o assistente</h2>

@@ -224,3 +224,68 @@ test("test mode: contacts match with or without the Brazilian 9 and by WhatsApp 
   addPhone(db, cid, "21 98888-7777");
   assert.equal(isAllowed(db, cid, "99887766@lid"), true);
 });
+test("a team answer after the deadline still reaches the customer, with thanks", async () => {
+  const { openDB, run, one, uid, now } = await import("../server/db.mjs");
+  const { handleTeamMessage, expireQuestions } =
+    await import("../server/assistant.mjs");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const db = openDB(mkdtempSync(join(tmpdir(), "cassist-team-")));
+  const cid = uid(),
+    conv = uid(),
+    qid = uid();
+  run(
+    db,
+    "INSERT INTO companies(id,name,settings,created) VALUES(?,?,?,?)",
+    cid,
+    "Padaria",
+    '{"teamTimeout":30}',
+    now(),
+  );
+  run(
+    db,
+    "INSERT INTO conversations(id,company_id,contact,mode,status,context,updated) VALUES(?,?,?,?,?,?,?)",
+    conv,
+    cid,
+    "Bruno",
+    "simulation",
+    "BOT_ATIVO",
+    JSON.stringify({ awaitingTeam: qid }),
+    now(),
+  );
+  const old = new Date(Date.now() - 60000).toISOString();
+  run(
+    db,
+    "INSERT INTO owner_questions(id,company_id,conversation_id,customer_text,question,created,code) VALUES(?,?,?,?,?,?,?)",
+    qid,
+    cid,
+    conv,
+    "vocês entregam?",
+    "Vocês fazem entrega?",
+    old,
+    "AB12",
+  );
+  expireQuestions(db);
+  assert.equal(
+    one(db, "SELECT status FROM conversations WHERE id=?", conv).status,
+    "AGUARDANDO_ATENDENTE",
+  );
+  const company = one(db, "SELECT * FROM companies WHERE id=?", cid);
+  const r = await handleTeamMessage(db, company, "Sim, entregamos no centro.");
+  assert.equal(r.answered, 1);
+  const last = one(
+    db,
+    "SELECT text FROM messages WHERE conversation_id=? ORDER BY rowid DESC",
+    conv,
+  );
+  assert.equal(last.text, "Obrigado por aguardar! Sim, entregamos no centro.");
+  assert.equal(
+    one(db, "SELECT status FROM conversations WHERE id=?", conv).status,
+    "BOT_ATIVO",
+  );
+  assert.equal(
+    one(db, "SELECT status FROM owner_questions WHERE id=?", qid).status,
+    "RESPONDIDA",
+  );
+});

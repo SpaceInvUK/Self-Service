@@ -398,12 +398,27 @@ export function notifyTeamHandoff(db, company, c, lastText) {
     `🔔 ${c.contact} precisa de atendimento${c.mode === "simulation" ? " (simulação)" : ""}.\nÚltima mensagem: "${String(lastText).slice(0, 300)}"\nO assistente está pausado nessa conversa. Responda pelo cAssistAI.`,
   );
 }
+// Questions the team can still answer: waiting, or past the deadline (last
+// 24 h) while no person has taken the conversation. A late answer still goes
+// to the customer.
 export const pendingQuestions = (db, cid) =>
   q(
     db,
-    "SELECT oq.*, c.contact FROM owner_questions oq LEFT JOIN conversations c ON c.id=oq.conversation_id WHERE oq.company_id=? AND oq.status='PENDENTE' ORDER BY oq.created",
+    "SELECT oq.*, c.contact FROM owner_questions oq LEFT JOIN conversations c ON c.id=oq.conversation_id WHERE oq.company_id=? AND (oq.status='PENDENTE' OR (oq.status='EXPIRADA' AND oq.created>? AND c.status IN ('BOT_ATIVO','AGUARDANDO_ATENDENTE'))) ORDER BY oq.created",
+    cid,
+    new Date(Date.now() - 86400000).toISOString(),
+  );
+// Last questions and what happened to each, for the panel.
+export const recentQuestions = (db, cid) =>
+  q(
+    db,
+    "SELECT oq.code,oq.question,oq.customer_text,oq.status,oq.answer,oq.created,oq.answered,c.contact FROM owner_questions oq LEFT JOIN conversations c ON c.id=oq.conversation_id WHERE oq.company_id=? ORDER BY oq.created DESC LIMIT 15",
     cid,
   );
+const thanked = (reply) =>
+  /^\s*(obrigad|valeu|agradec)/i.test(reply)
+    ? reply
+    : `Obrigado por aguardar! ${reply}`;
 export const pendingLearning = (db, cid) =>
   q(
     db,
@@ -473,7 +488,7 @@ export function expireQuestions(db) {
     sendToTeam(
       db,
       company.id,
-      `⏱️ #${row.code} sem resposta a tempo: ${c.contact} foi encaminhado para atendimento humano. O assistente fica pausado nessa conversa até alguém devolver pelo cAssistAI.`,
+      `⏱️ #${row.code} sem resposta a tempo: avisei ${c.contact} que um colega vai continuar. Se responderem agora (citando a pergunta), eu ainda passo a resposta ao cliente, enquanto ninguém assumir a conversa pelo cAssistAI.`,
     );
   }
 }
@@ -486,7 +501,7 @@ Perguntas abertas (código → pergunta): ${JSON.stringify(pending.map((p) => ({
 Itens aguardando a equipe dizer se valem para os próximos atendimentos: ${JSON.stringify(learning.map((l) => ({ codigo: l.code, item: l.item, motivo: l.reason })))}
 Conhecimento atual: ${JSON.stringify({ produtos: k.data.products.map((p) => `${p.nome}: ${p.preco}${p.unidade === "M2" ? "/m²" : ""}`).slice(0, 80), perguntas: k.data.faqs.map((f) => f.pergunta).slice(0, 60) }).slice(0, 7000)}
 Tarefas:
-1. Se a mensagem responde uma pergunta aberta, indique o código e se ela RESOLVE a dúvida do cliente ("resolve": true/false; "vou ver" ou "não sei" não resolve). Se resolver, escreva a resposta ao cliente: curta, educada, só com o que a equipe disse, sem prometer nada além disso. Se a mensagem citar um código (#XXXX) ou já vier associada a uma pergunta, use esse código. Se houver várias perguntas abertas e não der para saber qual, não responda nenhuma e use "clarify".
+1. Se houver só uma pergunta aberta, considere que a mensagem da equipe é a resposta para ela, a não ser que fale claramente de outro assunto. Se a mensagem responde uma pergunta aberta, indique o código e se ela RESOLVE a dúvida do cliente ("resolve": true/false; "vou ver" ou "não sei" não resolve). Se resolver, escreva a resposta ao cliente: curta, educada, só com o que a equipe disse, sem prometer nada além disso. Se a mensagem citar um código (#XXXX) ou já vier associada a uma pergunta, use esse código. Se houver várias perguntas abertas e não der para saber qual, não responda nenhuma e use "clarify".
 2. Separe o que a equipe ensinou em "learn". Tipos: {"kind":"product","nome":"Bolo de cenoura","preco":30,"unidade":"UN"} (unidade "M2" só para preço por metro quadrado), {"kind":"faq","pergunta":"Vocês vendem fruta?","resposta":"Não vendemos frutas."}, {"kind":"info","texto":"..."}. Para cada item, "scope": "permanente" (regra geral da empresa), "este_cliente" (vale só para esse cliente ou pedido, como desconto excepcional ou condição particular) ou "incerto" (não dá para saber). Nunca transforme desconto excepcional ou condição particular em regra geral.
 3. Se a mensagem responde "sim" ou "não" a um item aguardando, use "learn_confirm": [{"codigo":"...","decisao":"salvar" ou "descartar"}].
 4. Se não entender, escreva em "clarify" uma pergunta curta para a equipe.
@@ -612,9 +627,21 @@ export async function handleTeamMessage(
 
   let answered = 0,
     asked = 0;
+  const candidates = target ? [target] : pending;
   for (const a of Array.isArray(plan.answers) ? plan.answers : []) {
     const question =
       (target && (!a.codigo || a.codigo === target.code) ? target : null) ||
+      // Only one question open: the answer is for it, whatever code came back.
+      (candidates.length === 1 &&
+      !pending.some(
+        (p) =>
+          p.code ===
+          String(a.codigo || "")
+            .replace("#", "")
+            .toUpperCase(),
+      )
+        ? candidates[0]
+        : null) ||
       one(
         db,
         "SELECT * FROM owner_questions WHERE code=? AND company_id=? ORDER BY created DESC",
@@ -631,9 +658,15 @@ export async function handleTeamMessage(
       "SELECT * FROM conversations WHERE id=?",
       question.conversation_id,
     );
-    if (question.status !== "PENDENTE") {
+    const lateOpen =
+      question.status === "EXPIRADA" &&
+      c &&
+      ["BOT_ATIVO", "AGUARDANDO_ATENDENTE"].includes(c.status);
+    if (question.status !== "PENDENTE" && !lateOpen) {
       report.push(
-        `ℹ️ #${question.code}: a conversa já foi encaminhada a um atendente; não enviei nada ao cliente.`,
+        question.status === "RESPONDIDA"
+          ? `ℹ️ #${question.code}: essa pergunta já foi respondida.`
+          : `ℹ️ #${question.code}: um atendente já está cuidando dessa conversa; não enviei nada ao cliente.`,
       );
       continue;
     }
@@ -643,17 +676,30 @@ export async function handleTeamMessage(
       );
       continue;
     }
+    const deliver =
+      c && ["BOT_ATIVO", "AGUARDANDO_ATENDENTE"].includes(c.status);
+    // RESPONDIDA only when the customer actually got the answer.
     run(
       db,
-      "UPDATE owner_questions SET status='RESPONDIDA',answer=?,answered=? WHERE id=?",
+      "UPDATE owner_questions SET status=?,answer=?,answered=? WHERE id=?",
+      deliver ? "RESPONDIDA" : "COM_ATENDENTE",
       text,
       now(),
       question.id,
     );
-    if (c && c.status === "BOT_ATIVO") {
-      sendBot(db, c, reply.slice(0, 2000));
-      run(db, "UPDATE conversations SET context='{}' WHERE id=?", c.id);
-      report.push(`✅ #${question.code}: respondi ${c.contact}.`);
+    if (deliver) {
+      // Back to the customer with the answer; if the deadline had passed and
+      // nobody took the conversation, the assistant continues it.
+      const message = thanked(reply).slice(0, 2000);
+      sendBot(db, c, message);
+      run(
+        db,
+        "UPDATE conversations SET context='{}',status='BOT_ATIVO' WHERE id=?",
+        c.id,
+      );
+      report.push(
+        `✅ #${question.code}: respondi ${c.contact}: "${message.slice(0, 160)}"`,
+      );
       answered++;
     } else
       report.push(
