@@ -466,6 +466,7 @@ Toda alteração no app passa a ser registrada aqui, da mais recente para a mais
 - Tela Assistente: "Últimas perguntas à equipe", com a situação de cada uma (aguardando, cliente respondido, passou do prazo, com atendente). "Respondida" só quando o cliente recebeu.
 - Verificado: testes unitários (18, com um novo para resposta depois do prazo) e de navegador (2); roteiro por API com IA simulada: resposta a tempo sem citar, resposta depois do prazo (cliente recebe e conversa volta ao bot), conversa já assumida por atendente (nada enviado e situação "com atendente").
 - Não verificado: com WhatsApp e Groq reais.
+- Publicação: o servidor online atualizou sozinho para a versão 1.1 (conferido pelo painel publicado).
 
 **1.0 — 24/11/2026 — modo teste por contatos e grupo de ensino que se apresenta**
 
