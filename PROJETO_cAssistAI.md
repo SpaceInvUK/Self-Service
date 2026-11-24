@@ -467,6 +467,8 @@ Toda alteração no app passa a ser registrada aqui, da mais recente para a mais
 - Grupo de ensino: ao encontrar o grupo pela primeira vez (`numbers.team_welcomed`), o assistente se apresenta explicando que o grupo é para ele aprender; quando alguém é adicionado, dá boas-vindas marcando a pessoa (menções enviadas pelo conector). O nome do grupo continua configurável em Assistente → Equipe no WhatsApp.
 - Verificado: testes unitários (17, incluindo números com/sem 9, estrangeiros e `@lid`) e de navegador (2, o do conector agora confere o modo teste); roteiro por API (apresentação única no grupo, boas-vindas com menção, contatos sincronizados, mensagem de contato não marcado ignorada e não guardada, contato marcado atendido pelo `@lid`); tela no computador e no celular.
 - Não verificado: com WhatsApp real (sincronização de contatos e evento de entrada no grupo dependem do que o WhatsApp entrega ao aparelho conectado) e o seletor da agenda num Android real.
+- Publicação: o servidor online (https://cassistai.duckdns.org) se atualizou sozinho às 20:00 UTC de 24/11 e já serve a versão 1.0 (conferido pelo painel publicado).
+- Decisão do proprietário: login por link no e-mail e domínio próprio (cassistai.com.br, que aparecia livre) ficam para depois; e-mail pelo Gmail pessoal descartado por não ser profissional.
 
 **24/11/2026 — preparação do primeiro teste real**
 
