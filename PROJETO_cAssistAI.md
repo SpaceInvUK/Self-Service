@@ -425,7 +425,7 @@ Histórico: **0.2 — 08/11/2026:** primeira implementação funcional da centra
 
 ### Situação atual e próximos passos
 
-Atualizado em 17/11/2026.
+Atualizado em 24/11/2026 (site conferido no ar e na versão mais recente).
 
 | Item | Situação |
 |---|---|
@@ -442,9 +442,27 @@ Próximos passos:
 3. Testar com conversas reais: dúvida, orçamento, pergunta à equipe, áudio, agendamento.
 4. Depois: Google Agenda online (cliente OAuth "Aplicativo da Web"), modelos por ramo, lembretes de agendamento, visual.
 
+#### Roteiro do primeiro teste real
+
+Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um número que não seja o pessoal principal, pelo risco de bloqueio da conexão não oficial), um segundo celular ou uma pessoa para fazer o papel de cliente, a planilha preenchida ou 5 produtos/serviços com preço, o horário de funcionamento e quem da equipe entra no grupo.
+
+1. Celular do negócio: entrar em https://cassistai.duckdns.org, abrir WhatsApp → Adicionar → "Conectar com um código" e digitar o código no WhatsApp.
+2. Criar o grupo "cAssist" com o número conectado e a equipe.
+3. Importar a planilha (Planilha) ou ensinar os preços no grupo.
+4. Em Assistente: ligar o horário de funcionamento e o que o bot pode fazer.
+5. Do celular "cliente": cumprimentar; perguntar preço; pedir orçamento; perguntar algo que não está cadastrado (o bot pergunta no grupo; responder citando a mensagem); mandar duas mensagens seguidas; mandar um áudio; pedir para agendar; pedir "quero falar com uma pessoa".
+6. No grupo: ensinar algo por áudio; mandar um preço diferente de um já salvo (o bot deve pedir confirmação); não responder uma pergunta por 2 minutos (a conversa deve ir para atendente).
+7. Anotar o que achou estranho e mandar print ou a frase exata.
+
 ### Registro de alterações
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
+
+**24/11/2026 — preparação do primeiro teste real**
+
+- Proprietário quer começar a testar. Conferido: site no ar, com a versão mais recente, conta criada e IA configurada.
+- Criado o "Roteiro do primeiro teste real" na seção de situação atual.
+- Não verificado: WhatsApp conectado e conversas reais (dependem do celular do proprietário).
 
 **17/11/2026 — site online conferido**
 
