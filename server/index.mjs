@@ -38,7 +38,16 @@ import {
   customerTurn,
   applyTurn,
   norm,
+  teamIntroText,
+  welcomeMembers,
 } from "./assistant.mjs";
+import {
+  upsertContact,
+  addPhone,
+  isAllowed,
+  listContacts,
+  contactCounts,
+} from "./contacts.mjs";
 import {
   googleConfigured,
   authUrl as googleAuthUrl,
@@ -532,6 +541,50 @@ app.get("/api/google/callback", async (req, res) => {
   } catch (e) {
     back(e.message);
   }
+});
+// Test mode contact list.
+app.get(base + "/contacts", (req, res) =>
+  res.json({
+    contacts: listContacts(db, req.company.id, text(req.query.q, 60)),
+    ...contactCounts(db, req.company.id),
+  }),
+);
+app.post(base + "/contacts", (req, res) => {
+  if (req.user.role !== "admin") fail("Acesso não autorizado.", 403);
+  const list = Array.isArray(req.body.contacts)
+    ? req.body.contacts.slice(0, 500)
+    : [{ phone: req.body.phone, name: req.body.name }];
+  let added = 0;
+  transaction(db, () => {
+    for (const c of list)
+      if (
+        addPhone(
+          db,
+          req.company.id,
+          c.phone,
+          text(c.name, 80),
+          req.body.source === "agenda" ? "agenda" : "manual",
+        )
+      )
+        added++;
+  });
+  if (!added)
+    fail(
+      "Informe um número com DDD (ex.: 11 98765-4321) ou com + e o código do país.",
+    );
+  res.json({ ok: true, added });
+});
+app.post(base + "/contacts/:id", (req, res) => {
+  if (req.user.role !== "admin") fail("Acesso não autorizado.", 403);
+  const r = run(
+    db,
+    "UPDATE contacts SET allowed=? WHERE id=? AND company_id=?",
+    req.body.allowed === true ? 1 : 0,
+    req.params.id,
+    req.company.id,
+  );
+  if (!r.changes) fail("Contato não encontrado.", 404);
+  res.json({ ok: true });
 });
 app.get(base + "/users", (req, res) =>
   res.json(
@@ -1134,13 +1187,25 @@ app.post("/api/connector/heartbeat", connector, (req, res) => {
   );
   // The connector looks for the team group by name and reports its id.
   const teamJid = text(req.body.teamJid, 200);
-  if (req.body.teamJid !== undefined)
-    run(
-      db,
-      "UPDATE numbers SET team_jid=? WHERE id=?",
-      /@g\.us$/.test(teamJid) ? teamJid : null,
-      req.number.id,
-    );
+  if (req.body.teamJid !== undefined) {
+    const jid = /@g\.us$/.test(teamJid) ? teamJid : null;
+    run(db, "UPDATE numbers SET team_jid=? WHERE id=?", jid, req.number.id);
+    // First time this group is found: the assistant introduces itself there.
+    if (jid && req.number.team_welcomed !== jid) {
+      run(
+        db,
+        "UPDATE numbers SET team_welcomed=? WHERE id=?",
+        jid,
+        req.number.id,
+      );
+      const c = one(
+        db,
+        "SELECT * FROM companies WHERE id=?",
+        req.number.company_id,
+      );
+      sendToTeam(db, c.id, teamIntroText(c));
+    }
+  }
   const company = one(
     db,
     "SELECT settings FROM companies WHERE id=?",
@@ -1256,6 +1321,19 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
   }
   if (!/@(s.whatsapp.net|lid)$/.test(address))
     fail("Somente conversas individuais são suportadas.");
+  // Test mode: only the marked contacts are answered; others are only listed
+  // (name and number, no message) so the owner can turn them on.
+  const owner = one(db, "SELECT * FROM companies WHERE id=?", n.company_id);
+  const alt = text(req.body.alt, 200);
+  upsertContact(db, n.company_id, {
+    jid: address,
+    alt,
+    name: text(req.body.name, 100),
+    source: "mensagem",
+    seen: true,
+  });
+  if (settingsFor(owner).testMode && !isAllowed(db, n.company_id, address, alt))
+    return res.json({ ignored: "modo teste" });
   if (
     one(
       db,
@@ -1316,16 +1394,55 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
   });
   res.json({ ok: true });
 });
+// Contacts the connected WhatsApp knows, for the test-mode list.
+app.post("/api/connector/contacts", connector, (req, res) => {
+  const list = Array.isArray(req.body.contacts)
+    ? req.body.contacts.slice(0, 1000)
+    : [];
+  transaction(db, () => {
+    for (const c of list) {
+      const jid = text(c.id, 200);
+      const alt =
+        text(c.lid, 200) ||
+        (c.phoneNumber
+          ? `${String(c.phoneNumber).replace(/\D/g, "")}@s.whatsapp.net`
+          : "");
+      upsertContact(db, req.number.company_id, {
+        jid,
+        alt: alt !== jid ? alt : "",
+        name: text(c.name, 100),
+        source: "whatsapp",
+      });
+    }
+  });
+  res.json({ ok: true });
+});
+// People added to the team group get a welcome mentioning them.
+app.post("/api/connector/team-event", connector, (req, res) => {
+  const n = req.number;
+  if (!n.team_jid || text(req.body.group, 200) !== n.team_jid)
+    return res.json({ ignored: true });
+  const added = (Array.isArray(req.body.added) ? req.body.added : [])
+    .map((j) => text(j, 200))
+    .filter(Boolean)
+    .slice(0, 50);
+  const company = one(db, "SELECT * FROM companies WHERE id=?", n.company_id);
+  welcomeMembers(db, company, added);
+  res.json({ ok: true });
+});
 app.get("/api/connector/outbox", connector, (req, res) => {
   const pending = transaction(db, () => {
     const rows = q(
       db,
-      "SELECT m.id,m.text,c.address FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.number_id=? AND m.state='queued' ORDER BY m.created LIMIT 10",
+      "SELECT m.id,m.text,m.mentions,c.address FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.number_id=? AND m.state='queued' ORDER BY m.created LIMIT 10",
       req.number.id,
     );
     for (const m of rows)
       run(db, "UPDATE messages SET state='sending' WHERE id=?", m.id);
-    return rows;
+    return rows.map(({ mentions, ...m }) => ({
+      ...m,
+      mentions: mentions ? JSON.parse(mentions) : [],
+    }));
   });
   res.json(pending);
 });

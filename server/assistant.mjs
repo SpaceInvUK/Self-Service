@@ -52,6 +52,9 @@ export function settingsFor(company) {
     /* defaults below */
   }
   return {
+    // Test mode starts on: with a personal number the assistant must not
+    // answer family and friends until the owner picks who it answers.
+    testMode: s.testMode !== false,
     faq: s.faq !== false,
     quotes: s.quotes !== false,
     booking: s.booking === true,
@@ -73,6 +76,7 @@ export function settingsFor(company) {
 export function cleanSettings(input, current) {
   const out = { ...current };
   for (const k of [
+    "testMode",
     "faq",
     "quotes",
     "booking",
@@ -355,10 +359,36 @@ export function teamConversation(db, cid) {
   return { ...c, address, group: Boolean(n.team_jid) };
 }
 // Returns the message id (its WhatsApp id is recorded when delivered), or null.
-export function sendToTeam(db, cid, body) {
+export function sendToTeam(db, cid, body, mentions = []) {
   const c = teamConversation(db, cid);
   if (!c) return null;
-  return addMessage(db, c, "bot", body, "queued");
+  const id = addMessage(db, c, "bot", body, "queued");
+  if (mentions.length)
+    run(
+      db,
+      "UPDATE messages SET mentions=? WHERE id=?",
+      JSON.stringify(mentions),
+      id,
+    );
+  return id;
+}
+// First time the team group is found: the assistant explains what it is for.
+export function teamIntroText(company) {
+  return `👋 Olá! Sou o assistente virtual da ${company.name}.\nEste grupo foi criado para eu aprender: o que vocês disserem aqui sobre a empresa (produtos, preços, horários, regras) eu passo a usar nos atendimentos.\nQuando eu não souber responder um cliente, pergunto aqui com um código (ex.: #K7QD): é só responder citando a mensagem.\nPodem me ensinar por texto ou áudio. Desconto ou combinado só para um cliente eu não transformo em regra; se ficar em dúvida, pergunto antes de salvar.`;
+}
+export function welcomeMembers(db, company, jids) {
+  const people = jids.filter((j) => /@(s\.whatsapp\.net|lid)$/.test(j));
+  if (!people.length) return null;
+  const tags = people
+    .map((j) => "@" + j.split("@")[0].split(":")[0])
+    .join(", ");
+  const s = settingsFor(company);
+  return sendToTeam(
+    db,
+    company.id,
+    `👋 Bem-vindo(a), ${tags}! Este grupo é onde eu aprendo sobre a ${company.name}: o que você disser aqui sobre a empresa eu passo a usar nos atendimentos.\nQuando eu perguntar algo com um código (#XXXX), responda citando a mensagem.${s.authorized.length ? "\nPara me ensinar, seu número precisa estar na lista de autorizados (Assistente → Equipe no WhatsApp)." : ""}`,
+    people,
+  );
 }
 export function notifyTeamHandoff(db, company, c, lastText) {
   if (!settingsFor(company).notifyOwner || c.mode === "owner") return;

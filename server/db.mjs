@@ -28,7 +28,8 @@ export function openDB(dir = process.env.DATA_DIR || "./data") {
   CREATE TABLE IF NOT EXISTS learned(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),kind TEXT NOT NULL,data TEXT NOT NULL,source TEXT NOT NULL DEFAULT 'owner',created TEXT NOT NULL);
   CREATE TABLE IF NOT EXISTS owner_questions(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),conversation_id TEXT REFERENCES conversations(id),customer_text TEXT NOT NULL,question TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'PENDENTE',answer TEXT,created TEXT NOT NULL,answered TEXT);
   CREATE TABLE IF NOT EXISTS bookings(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),conversation_id TEXT REFERENCES conversations(id),start TEXT NOT NULL,end TEXT NOT NULL,service TEXT NOT NULL DEFAULT '',customer TEXT NOT NULL DEFAULT '',status TEXT NOT NULL DEFAULT 'PENDENTE',google_event_id TEXT,created TEXT NOT NULL);
-  CREATE TABLE IF NOT EXISTS learn_pending(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),code TEXT NOT NULL,item TEXT NOT NULL,reason TEXT NOT NULL,team_message_id TEXT,status TEXT NOT NULL DEFAULT 'PENDENTE',created TEXT NOT NULL);
+  CREATE TABLE IF NOT EXISTS contacts(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),jid TEXT NOT NULL,alt TEXT,phone TEXT,name TEXT NOT NULL DEFAULT '',allowed INTEGER NOT NULL DEFAULT 0,source TEXT NOT NULL DEFAULT 'whatsapp',last_seen TEXT,created TEXT NOT NULL,UNIQUE(company_id,jid));
+    CREATE TABLE IF NOT EXISTS learn_pending(id TEXT PRIMARY KEY,company_id TEXT NOT NULL REFERENCES companies(id),code TEXT NOT NULL,item TEXT NOT NULL,reason TEXT NOT NULL,team_message_id TEXT,status TEXT NOT NULL DEFAULT 'PENDENTE',created TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS google_accounts(company_id TEXT PRIMARY KEY REFERENCES companies(id),refresh_token TEXT NOT NULL,email TEXT,created TEXT NOT NULL);
   `);
   // Later additions to existing installations.
@@ -41,6 +42,8 @@ export function openDB(dir = process.env.DATA_DIR || "./data") {
     ["owner_questions", "code TEXT"],
     ["owner_questions", "team_message_id TEXT"],
     ["owner_questions", "summary TEXT"],
+    ["numbers", "team_welcomed TEXT"],
+    ["messages", "mentions TEXT"],
   ])
     try {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column}`);

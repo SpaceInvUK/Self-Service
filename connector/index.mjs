@@ -184,6 +184,34 @@ async function connect() {
     }
   });
   // Group renamed or the number added to a group: look for the team group again.
+  // Contacts the WhatsApp knows go to the central for the test-mode list.
+  const queueContacts = (list) => {
+    for (const c of list || [])
+      if (c?.id)
+        pendingContacts.set(c.id, { ...pendingContacts.get(c.id), ...c });
+  };
+  socket.ev.on("contacts.upsert", queueContacts);
+  socket.ev.on("contacts.update", queueContacts);
+  socket.ev.on("messaging-history.set", ({ contacts }) =>
+    queueContacts(contacts),
+  );
+  // Someone added to the team group gets a welcome from the assistant.
+  socket.ev.on(
+    "group-participants.update",
+    async ({ id, participants, action }) => {
+      if (action !== "add" || !teamJid || id !== teamJid) return;
+      const me = [socket?.user?.id, socket?.user?.lid]
+        .filter(Boolean)
+        .map(userPart);
+      const added = (participants || [])
+        .map((p) => (typeof p === "string" ? p : p?.id || ""))
+        .filter((j) => j && !me.includes(userPart(j)));
+      if (added.length)
+        await api("team-event", { group: id, added }).catch((e) =>
+          console.error("Boas-vindas não enviadas:", e.message),
+        );
+    },
+  );
   socket.ev.on("groups.upsert", () => findTeamGroup(true));
   socket.ev.on("groups.update", () => findTeamGroup(true));
   socket.ev.on("messages.upsert", async ({ messages, type }) => {
@@ -248,6 +276,7 @@ async function connect() {
         id: m.key.id,
         address: jid,
         name: m.pushName || "",
+        alt: m.key.senderPn || m.key.remoteJidAlt || "",
         text,
         ...(owner ? { owner: true } : {}),
       };
@@ -257,6 +286,22 @@ async function connect() {
   });
 }
 const startedAt = Date.now();
+const pendingContacts = new Map();
+async function sendContacts() {
+  if (!pendingContacts.size || stopped) return;
+  const batch = [...pendingContacts.values()].slice(0, 500).map((c) => ({
+    id: c.id,
+    lid: c.lid || "",
+    phoneNumber: c.phoneNumber || "",
+    name: c.name || c.notify || c.verifiedName || "",
+  }));
+  try {
+    await api("contacts", { contacts: batch });
+    for (const c of batch) pendingContacts.delete(c.id);
+  } catch (e) {
+    console.error("Contatos não enviados:", e.message);
+  }
+}
 let audioMaxSeconds = 600;
 // Voice notes are downloaded here and transcribed by the central.
 async function audioFields(m, content) {
@@ -333,7 +378,14 @@ async function poll() {
         sentByBot.add(messageId);
         if (sentByBot.size > 500)
           sentByBot.delete(sentByBot.values().next().value);
-        await socket.sendMessage(m.address, { text: m.text }, { messageId });
+        await socket.sendMessage(
+          m.address,
+          {
+            text: m.text,
+            ...(m.mentions?.length ? { mentions: m.mentions } : {}),
+          },
+          { messageId },
+        );
         delivered[m.id] = { id: m.id, ok: true, waId: messageId };
         persist(statePath, delivered);
       } catch {
@@ -358,6 +410,7 @@ setInterval(() => {
   drainInbox();
   poll();
 }, 2500);
+setInterval(sendContacts, 15000);
 process.on("SIGINT", () => {
   stopped = true;
   status = "offline";

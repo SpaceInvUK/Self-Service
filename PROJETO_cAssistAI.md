@@ -433,11 +433,12 @@ Atualizado em 24/11/2026 (site conferido no ar e na versão mais recente).
 | Conta administradora | Já criada (o cadastro inicial está fechado) |
 | IA (Groq) | Chave configurada no servidor |
 | WhatsApp no servidor | Modo de conexão local ativo; conexão de um número ainda não conferida |
+| Modo teste | Ligado por padrão (v1.0): só responde contatos marcados |
 | App no computador (Windows) | `Iniciar cAssistAI.bat`, com atualização automática |
 | WhatsApp, Groq e Google reais | Ainda não testados de ponta a ponta |
 
 Próximos passos:
-1. Entrar no site pelo celular e conectar o WhatsApp (WhatsApp → Adicionar → "Conectar com um código").
+1. Entrar no site pelo celular e conectar o WhatsApp (WhatsApp → Adicionar → "Conectar com um código"). Em Assistente → "Quem o assistente atende", marcar quem participa do teste.
 2. Criar no WhatsApp o grupo "cAssist" com o número conectado e a equipe.
 3. Testar com conversas reais: dúvida, orçamento, pergunta à equipe, áudio, agendamento.
 4. Depois: Google Agenda online (cliente OAuth "Aplicativo da Web"), modelos por ramo, lembretes de agendamento, visual.
@@ -457,6 +458,15 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 ### Registro de alterações
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
+
+**1.0 — 24/11/2026 — modo teste por contatos e grupo de ensino que se apresenta**
+
+- Contexto: o proprietário tem um único número e vai testar com ele. Explicado o risco da conexão não oficial (regras de mensagens do WhatsApp proíbem clientes não oficiais e automação usados para prejudicar; bloqueios costumam vir de spam) e que a API oficial da Meta com "coexistência" mantém o mesmo número no WhatsApp Business. Decisão: testar com o número atual, em modo teste.
+- Modo teste (`server/contacts.mjs`, tabela `contacts`): ligado por padrão; só contatos marcados são atendidos; dos demais guarda só nome e número, sem a mensagem. Contatos vêm do WhatsApp conectado (eventos de contatos do conector, enviados a cada 15 s), de quem escreveu, da agenda do celular (Contact Picker do Chrome no Android) ou digitados. Celulares do Brasil casam com e sem o 9; identificadores internos do WhatsApp (`@lid`) casam pelo telefone alternativo. Número sem "+" vale como Brasil.
+- Tela Assistente: quadro "Quem o assistente atende" com ligar/desligar, busca, adicionar número, escolher da agenda (Android) e marcar/desmarcar.
+- Grupo de ensino: ao encontrar o grupo pela primeira vez (`numbers.team_welcomed`), o assistente se apresenta explicando que o grupo é para ele aprender; quando alguém é adicionado, dá boas-vindas marcando a pessoa (menções enviadas pelo conector). O nome do grupo continua configurável em Assistente → Equipe no WhatsApp.
+- Verificado: testes unitários (17, incluindo números com/sem 9, estrangeiros e `@lid`) e de navegador (2, o do conector agora confere o modo teste); roteiro por API (apresentação única no grupo, boas-vindas com menção, contatos sincronizados, mensagem de contato não marcado ignorada e não guardada, contato marcado atendido pelo `@lid`); tela no computador e no celular.
+- Não verificado: com WhatsApp real (sincronização de contatos e evento de entrada no grupo dependem do que o WhatsApp entrega ao aparelho conectado) e o seletor da agenda num Android real.
 
 **24/11/2026 — preparação do primeiro teste real**
 

@@ -798,6 +798,155 @@ function Toggle({ name, checked, onChange, children }) {
     </label>
   );
 }
+const canPickContacts = () =>
+  typeof navigator !== "undefined" &&
+  "contacts" in navigator &&
+  typeof window.ContactsManager !== "undefined";
+function TestModePanel({ data, cid, act, notify, refresh, isAdmin }) {
+  const [list, setList] = useState({ contacts: [], total: 0, allowed: 0 }),
+    [search, setSearch] = useState(""),
+    [phone, setPhone] = useState("");
+  const on = data.settings.testMode;
+  const load = () =>
+    api(`/companies/${cid}/contacts?q=${encodeURIComponent(search)}`)
+      .then(setList)
+      .catch((e) => notify(e.message, true));
+  useEffect(() => {
+    const t = setTimeout(load, 250);
+    return () => clearTimeout(t);
+  }, [cid, search]);
+  async function toggleMode() {
+    const r = await act(
+      () =>
+        api(`/companies/${cid}/settings`, {
+          method: "PUT",
+          body: { testMode: !on },
+        }),
+      !on
+        ? "Modo teste ligado: só os contatos marcados são atendidos."
+        : "Modo teste desligado: o assistente atende todo mundo.",
+    );
+    if (r) refresh();
+  }
+  async function add(contacts, source) {
+    const r = await act(
+      () =>
+        api(`/companies/${cid}/contacts`, {
+          method: "POST",
+          body: { contacts, source },
+        }),
+      "Contato marcado.",
+    );
+    if (r) {
+      setPhone("");
+      load();
+    }
+  }
+  async function pick() {
+    try {
+      const chosen = await navigator.contacts.select(["name", "tel"], {
+        multiple: true,
+      });
+      const contacts = chosen.flatMap((c) =>
+        (c.tel || []).map((tel) => ({ phone: tel, name: c.name?.[0] || "" })),
+      );
+      if (contacts.length) add(contacts, "agenda");
+    } catch {
+      /* picker closed */
+    }
+  }
+  return (
+    <section className="panel settings-card test-mode">
+      <div className="panel-heading">
+        <div>
+          <h2>Quem o assistente atende</h2>
+          <p className="muted small">
+            {on
+              ? `Modo teste ligado: só responde os contatos marcados (${list.allowed}). As outras pessoas continuam falando com você normalmente e as mensagens delas não ficam guardadas aqui.`
+              : "Modo teste desligado: o assistente responde todo mundo que escrever para o WhatsApp conectado."}
+          </p>
+        </div>
+        {isAdmin && (
+          <Button variant={on ? "secondary" : ""} onClick={toggleMode}>
+            {on ? "Desligar modo teste" : "Ligar modo teste"}
+          </Button>
+        )}
+      </div>
+      {on && (
+        <>
+          <div className="inline-form">
+            <input
+              aria-label="Buscar contato"
+              placeholder="Buscar por nome ou número"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            {isAdmin && canPickContacts() && (
+              <Button variant="secondary" onClick={pick}>
+                Escolher da agenda
+              </Button>
+            )}
+          </div>
+          {isAdmin && (
+            <form
+              className="inline-form"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (phone.trim()) add([{ phone }], "manual");
+              }}
+            >
+              <input
+                aria-label="Adicionar número"
+                placeholder="Adicionar número (ex.: 11 98765-4321)"
+                inputMode="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+              <Button type="submit" icon={Plus} variant="secondary">
+                Adicionar
+              </Button>
+            </form>
+          )}
+          {list.contacts.length ? (
+            <ul className="learned-list contact-list">
+              {list.contacts.map((c) => (
+                <li key={c.id}>
+                  <Toggle
+                    checked={Boolean(c.allowed)}
+                    onChange={(v) =>
+                      isAdmin &&
+                      act(() =>
+                        api(`/companies/${cid}/contacts/${c.id}`, {
+                          method: "POST",
+                          body: { allowed: v },
+                        }),
+                      ).then(load)
+                    }
+                  >
+                    {c.name || "Sem nome"}
+                    <span className="muted small">
+                      {" "}
+                      {c.phone ? `+${c.phone}` : ""}
+                      {c.source === "mensagem" && c.last_seen
+                        ? ` · escreveu ${new Date(c.last_seen).toLocaleDateString("pt-BR")}`
+                        : ""}
+                    </span>
+                  </Toggle>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted small">
+              {search
+                ? "Nenhum contato encontrado."
+                : "Os contatos do WhatsApp aparecem aqui alguns minutos depois de conectar o número. Você também pode adicionar um número acima."}
+            </p>
+          )}
+        </>
+      )}
+    </section>
+  );
+}
 function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
   const [settings, setSettings] = useState(data.settings),
     [teach, setTeach] = useState(""),
@@ -832,6 +981,14 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
       <PageTitle
         title="Seu assistente"
         description="Ensine o que ele precisa saber e escolha o que ele pode fazer sozinho."
+      />
+      <TestModePanel
+        data={data}
+        cid={cid}
+        act={act}
+        notify={notify}
+        refresh={refresh}
+        isAdmin={isAdmin}
       />
       {data.ownerQuestions.length > 0 && (
         <section className="panel owner-questions">

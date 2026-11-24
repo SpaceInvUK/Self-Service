@@ -192,3 +192,35 @@ test("team settings: group names and validation", async () => {
   assert.deepEqual(next.authorized, ["5511987654321"]);
   assert.throws(() => cleanSettings({ teamTimeout: 5 }, s));
 });
+test("test mode: contacts match with or without the Brazilian 9 and by WhatsApp ids", async () => {
+  const { openDB, run, uid, now } = await import("../server/db.mjs");
+  const { addPhone, upsertContact, isAllowed, normalizePhone } =
+    await import("../server/contacts.mjs");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const db = openDB(mkdtempSync(join(tmpdir(), "cassist-test-")));
+  const cid = uid();
+  run(
+    db,
+    "INSERT INTO companies(id,name,created) VALUES(?,?,?)",
+    cid,
+    "X",
+    now(),
+  );
+  assert.equal(normalizePhone("(11) 98765-4321"), "5511987654321");
+  assert.equal(normalizePhone("+1 415 555 0100"), "14155550100");
+  addPhone(db, cid, "11 98765-4321", "Ana");
+  // WhatsApp may use the old 8-digit form for Brazilian mobiles.
+  assert.equal(isAllowed(db, cid, "551187654321@s.whatsapp.net"), true);
+  assert.equal(isAllowed(db, cid, "5511912345678@s.whatsapp.net"), false);
+  // A contact known only by its internal id (lid) with the phone as alternative.
+  upsertContact(db, cid, {
+    jid: "99887766@lid",
+    alt: "5521988887777@s.whatsapp.net",
+    name: "Bia",
+  });
+  assert.equal(isAllowed(db, cid, "99887766@lid"), false);
+  addPhone(db, cid, "21 98888-7777");
+  assert.equal(isAllowed(db, cid, "99887766@lid"), true);
+});

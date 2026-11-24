@@ -3077,3 +3077,25 @@ button.link {
 .inline-form input {
   margin-bottom: 0;
 }
+.test-mode {
+  margin-bottom: 20px;
+}
+.test-mode .panel-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.test-mode .inline-form {
+  margin-bottom: 10px;
+}
+.contact-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+@media (max-width: 640px) {
+  .test-mode .panel-heading {
+    flex-direction: column;
+  }
+}

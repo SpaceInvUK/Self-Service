@@ -178,6 +178,22 @@ test("connector protocol: token scope, duplicate delivery, quota reservation, ha
     name: "Cliente do protocolo",
     text: "Quero 2 unidades WB-200",
   };
+  // Test mode is on by default: an unmarked contact is ignored and listed.
+  const ignored = await request
+    .post("/api/connector/incoming", { headers, data: incoming })
+    .then((r) => r.json());
+  expect(ignored.ignored).toBeTruthy();
+  const listed = await request
+    .get(`/api/companies/${company.id}/contacts`)
+    .then((r) => r.json());
+  expect(listed.contacts.map((c) => c.name)).toContain("Cliente do protocolo");
+  expect(
+    (
+      await request.post(`/api/companies/${company.id}/contacts`, {
+        data: { phone: "+5500111111111" },
+      })
+    ).ok(),
+  ).toBeTruthy();
   expect(
     (
       await request.post("/api/connector/incoming", { headers, data: incoming })
