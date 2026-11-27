@@ -255,11 +255,28 @@ async function connect() {
       // "Message yourself" chat = the owner talking to the assistant. Skip
       // what the assistant itself sent there and anything from before start.
       const owner = m.key.fromMe && isSelf(jid);
-      if (owner) {
+      if (m.key.fromMe) {
+        // Our own messages (the assistant's) and old history are ignored.
         if (sentByBot.has(m.key.id)) continue;
         const ts = Number(m.messageTimestamp || 0) * 1000;
         if (ts && ts < startedAt - 60000) continue;
-      } else if (m.key.fromMe || type !== "notify") continue;
+        if (!owner) {
+          // The owner answered a customer from the phone: a person took over.
+          const c = m.message?.ephemeralMessage?.message || m.message;
+          incoming[m.key.id] = {
+            id: m.key.id,
+            address: jid,
+            alt: m.key.senderPn || m.key.remoteJidAlt || "",
+            humanReply: true,
+            text:
+              c?.conversation ||
+              c?.extendedTextMessage?.text ||
+              "[mensagem enviada pelo celular]",
+          };
+          persist(inboxPath, incoming);
+          continue;
+        }
+      } else if (type !== "notify") continue;
       const content = m.message?.ephemeralMessage?.message || m.message;
       const voice = await audioFields(m, content);
       const text =

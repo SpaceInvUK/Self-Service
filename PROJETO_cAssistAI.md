@@ -459,6 +459,14 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.4 — 27/11/2026 — o bot não trava mais esperando atendente**
+
+- Relato: depois de "passar para atendente" (feijão), a cliente perguntou "Tem pão?" e o bot não respondeu mais. Conferido pelo texto do WhatsApp Web: a conversa estava aguardando atendente desde 13:14 e, nesse estado, o bot ficava calado até alguém assumir.
+- Agora "aguardando atendente" não cala o bot: ele continua respondendo outras dúvidas, sabe por que o colega foi chamado (se o cliente voltar ao assunto, diz que o colega já vai responder), não manda um segundo aviso ao grupo e a conversa continua marcada como aguardando. O bot só fica calado quando uma pessoa assume de fato.
+- Uma pessoa assume clicando "Assumir" no painel ou respondendo o cliente pelo celular: o conector repassa mensagens enviadas pelo próprio número a clientes (que não sejam do bot nem histórico antigo), a central registra a mensagem e marca a conversa como "em atendimento humano". "Devolver ao bot" no painel volta ao normal.
+- Esperar resposta da equipe no grupo já não travava (a conversa segue com o bot); mantido.
+- Verificado: testes unitários (19) e de navegador (2); roteiro por API com IA simulada (pede pessoa → aviso único → "tem pão?" respondido → pede pessoa de novo sem novo aviso → dono responde pelo celular → bot calado → devolver ao bot → responde). Não verificado com WhatsApp real.
+
 **1.3 — 27/11/2026 — correções a partir das conversas reais**
 
 - Com autorização do proprietário, conectei um WhatsApp Web no navegador deste ambiente (código de 8 letras) e li só o texto do teste com a cliente "Júlia" (a partir de 13:12 de 27/11) e o grupo cAssist. Conversas pessoais não foram usadas nem guardadas no projeto.

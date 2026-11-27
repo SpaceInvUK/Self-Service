@@ -826,7 +826,9 @@ const batchTimers = new Map();
 // Must be called inside serialized(c.id).
 function receive(c, body) {
   addMessage(c, "customer", body);
-  if (c.status !== "BOT_ATIVO") {
+  // Only a person who took the conversation silences the assistant; while
+  // the customer waits for one, it keeps helping.
+  if (!botAnswers(c.status)) {
     markHandled(c.id);
     return Promise.resolve();
   }
@@ -835,6 +837,8 @@ function receive(c, body) {
   scheduleReply(c.id, delay);
   return Promise.resolve();
 }
+const botAnswers = (status) =>
+  ["BOT_ATIVO", "AGUARDANDO_ATENDENTE"].includes(status);
 function scheduleReply(id, delay) {
   clearTimeout(batchTimers.get(id));
   batchTimers.set(
@@ -856,7 +860,7 @@ const markHandled = (id) =>
   );
 async function respond(id) {
   const c = one(db, "SELECT * FROM conversations WHERE id=?", id);
-  if (!c || c.status !== "BOT_ATIVO" || c.mode === "owner") return;
+  if (!c || !botAnswers(c.status) || c.mode === "owner") return;
   const rows = q(
     db,
     "SELECT rowid,text FROM messages WHERE conversation_id=? AND role='customer' AND rowid>? ORDER BY rowid",
@@ -930,11 +934,31 @@ async function respond(id) {
   // reasons over the company data). Only three things stay fixed: requests
   // for a person/complaints, accepting a quote and a complete quote (exact
   // numbers). Without AI, or if it fails, the rule-based answer is used.
+  const waitingFor =
+    c.status === "AGUARDANDO_ATENDENTE"
+      ? one(
+          db,
+          "SELECT customer_text FROM owner_questions WHERE conversation_id=? AND kind='atendimento' ORDER BY created DESC",
+          c.id,
+        )?.customer_text || "o pedido anterior"
+      : null;
+  if (waitingFor && result.handoff && !result.unknown)
+    result = {
+      text: "Já chamei um colega e ele vai te responder em breve. Enquanto isso, posso ajudar com outra coisa?",
+      handoff: true,
+      context: {},
+    };
   const fixed = result.quote || (result.handoff && !result.unknown);
   if (aiReady() ? !fixed : result.unknown || result.smalltalk) {
     let turn = null;
     try {
-      turn = await customerTurn(db, company, c, k, context);
+      turn = await customerTurn(
+        db,
+        company,
+        c,
+        k,
+        waitingFor ? { ...context, waitingPerson: waitingFor } : context,
+      );
     } catch (e) {
       console.error("[IA] falha:", e.message);
     }
@@ -951,7 +975,9 @@ async function respond(id) {
     if (turn) result = await applyTurn(db, company, c, input, turn, k);
   }
   const latest = conversation(c.company_id, c.id);
-  if (latest.status !== "BOT_ATIVO") return;
+  if (!botAnswers(latest.status)) return;
+  // Already waiting for a person: no second notice, status stays waiting.
+  const waiting = latest.status === "AGUARDANDO_ATENDENTE";
   transaction(db, () => {
     // Recheck inside transaction after asynchronous AI work across different conversations.
     if (quotaReached()) {
@@ -986,11 +1012,11 @@ async function respond(id) {
       db,
       "UPDATE conversations SET context=?,status=? WHERE id=?",
       JSON.stringify(result.context || {}),
-      result.handoff ? "AGUARDANDO_ATENDENTE" : "BOT_ATIVO",
+      result.handoff || waiting ? "AGUARDANDO_ATENDENTE" : "BOT_ATIVO",
       c.id,
     );
   });
-  if (result.handoff) notifyTeamHandoff(db, company, c, input);
+  if (result.handoff && !waiting) notifyTeamHandoff(db, company, c, input);
 }
 app.get(base + "/conversations/:id", (req, res) => {
   const c = conversation(req.company.id, req.params.id);
@@ -1348,6 +1374,38 @@ app.post("/api/connector/incoming", connector, async (req, res) => {
   }
   if (!/@(s.whatsapp.net|lid)$/.test(address))
     fail("Somente conversas individuais são suportadas.");
+  // The owner wrote to a customer from the phone: a person took over, so the
+  // assistant leaves that conversation until someone gives it back.
+  if (req.body.humanReply === true) {
+    const alt = text(req.body.alt, 200);
+    const c = one(
+      db,
+      "SELECT * FROM conversations WHERE number_id=? AND mode='whatsapp' AND (address=? OR address=?) AND status<>'ENCERRADA'",
+      n.id,
+      address,
+      alt || address,
+    );
+    if (c) {
+      if (
+        !one(
+          db,
+          "SELECT 1 FROM inbound WHERE number_id=? AND external_id=?",
+          n.id,
+          externalId,
+        )
+      ) {
+        run(db, "INSERT INTO inbound VALUES(?,?)", n.id, externalId);
+        addMessage(c, "human", body, "sent");
+        run(
+          db,
+          "UPDATE conversations SET status='EM_ATENDIMENTO_HUMANO',context='{}' WHERE id=?",
+          c.id,
+        );
+        markHandled(c.id);
+      }
+    }
+    return res.json({ ok: true });
+  }
   // Test mode: only the marked contacts are answered; others are only listed
   // (name and number, no message) so the owner can turn them on.
   const owner = one(db, "SELECT * FROM companies WHERE id=?", n.company_id);
