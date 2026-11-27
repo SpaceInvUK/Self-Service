@@ -44,6 +44,7 @@ export function openDB(dir = process.env.DATA_DIR || "./data") {
     ["owner_questions", "summary TEXT"],
     ["numbers", "team_welcomed TEXT"],
     ["messages", "mentions TEXT"],
+    ["owner_questions", "kind TEXT NOT NULL DEFAULT 'pergunta'"],
   ])
     try {
       db.exec(`ALTER TABLE ${table} ADD COLUMN ${column}`);

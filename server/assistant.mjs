@@ -362,7 +362,8 @@ export function teamConversation(db, cid) {
 export function sendToTeam(db, cid, body, mentions = []) {
   const c = teamConversation(db, cid);
   if (!c) return null;
-  const id = addMessage(db, c, "bot", body, "queued");
+  // Same number for owner and assistant: the robot mark tells them apart.
+  const id = addMessage(db, c, "bot", `🤖 ${body}`, "queued");
   if (mentions.length)
     run(
       db,
@@ -390,12 +391,28 @@ export function welcomeMembers(db, company, jids) {
     people,
   );
 }
+// The team is told; replying in the group (quoting the message or with the
+// code) sends the answer to the customer and the assistant takes over again.
 export function notifyTeamHandoff(db, company, c, lastText) {
   if (!settingsFor(company).notifyOwner || c.mode === "owner") return;
-  sendToTeam(
+  const tag = code();
+  const mid = sendToTeam(
     db,
     company.id,
-    `🔔 ${c.contact} precisa de atendimento${c.mode === "simulation" ? " (simulação)" : ""}.\nÚltima mensagem: "${String(lastText).slice(0, 300)}"\nO assistente está pausado nessa conversa. Responda pelo cAssistAI.`,
+    `🔔 #${tag} · ${c.contact}${c.mode === "simulation" ? " (simulação)" : ""} precisa de atendimento.\nÚltima mensagem: "${String(lastText).slice(0, 300)}"\nResponda aqui citando esta mensagem que eu passo a resposta e volto a atender, ou assuma pelo cAssistAI.`,
+  );
+  run(
+    db,
+    "INSERT INTO owner_questions(id,company_id,conversation_id,customer_text,question,created,code,team_message_id,kind) VALUES(?,?,?,?,?,?,?,?,?)",
+    uid(),
+    company.id,
+    c.id,
+    String(lastText).slice(0, 500),
+    "Cliente passado para atendimento: como responder?",
+    now(),
+    tag,
+    mid,
+    "atendimento",
   );
 }
 // Questions the team can still answer: waiting, or past the deadline (last
@@ -459,6 +476,8 @@ export function expireQuestions(db) {
     const s = settingsFor({ settings: row.settings });
     if (Date.now() - Date.parse(row.created) < s.teamTimeout * 1000) continue;
     run(db, "UPDATE owner_questions SET status='EXPIRADA' WHERE id=?", row.id);
+    // A hand-off notice has no customer waiting on the assistant: nothing to say.
+    if (row.kind === "atendimento") continue;
     const c = one(
       db,
       "SELECT * FROM conversations WHERE id=?",
@@ -496,17 +515,19 @@ export function expireQuestions(db) {
 // ---------- team messages ----------
 function teamPrompt(company, k, pending, learning) {
   return `Você é o assistente virtual de atendimento da empresa "${company.name}". Agora você está no grupo interno da equipe (pessoas autorizadas), não com um cliente.
-A equipe responde perguntas que você fez sobre clientes e ensina coisas sobre a empresa.
+Este grupo foi criado para você aprender: o que a equipe diz aqui sobre a empresa é verdade e deve ser usado nos atendimentos. A equipe responde perguntas que você fez sobre clientes e ensina coisas sobre a empresa (produtos, preços, horários, endereço, telefone, formas de pagamento, chave Pix, condições, o que vende e o que não vende).
+Perguntas com código "atendimento" são clientes que foram passados para atendimento: se a equipe disser o que responder (ex.: "feijão é comida, não vendemos"), escreva a resposta ao cliente que isso implica.
 Perguntas abertas (código → pergunta): ${JSON.stringify(pending.map((p) => ({ codigo: p.code, cliente: p.contact, pergunta: p.question, cliente_disse: p.customer_text, ja_informado: p.summary })))}
 Itens aguardando a equipe dizer se valem para os próximos atendimentos: ${JSON.stringify(learning.map((l) => ({ codigo: l.code, item: l.item, motivo: l.reason })))}
 Conhecimento atual: ${JSON.stringify({ empresa: k.data.company, produtos: k.data.products.map((p) => `${p.nome}: ${p.preco}${p.unidade === "M2" ? "/m²" : ""}`).slice(0, 80), perguntas_e_respostas: k.data.faqs.map((f) => `${f.pergunta} → ${f.resposta}`).slice(0, 60), informacoes: k.data.conditions.map((c) => c.valor).slice(0, 40) }).slice(0, 12000)}
 Use o histórico do grupo para entender o contexto (ex.: "e o de chocolate?" depois de falar de bolo). Mensagens suas aparecem como "assistant"; as da equipe como "user" (podem vir todas do mesmo número).
 Tarefas:
 1. Se houver só uma pergunta aberta, considere que a mensagem da equipe é a resposta para ela, a não ser que fale claramente de outro assunto. Se a mensagem responde uma pergunta aberta, indique o código e se ela RESOLVE a dúvida do cliente ("resolve": true/false; "vou ver" ou "não sei" não resolve). Se resolver, escreva a resposta ao cliente: curta, educada, só com o que a equipe disse, sem prometer nada além disso. Se a mensagem citar um código (#XXXX) ou já vier associada a uma pergunta, use esse código. Se houver várias perguntas abertas e não der para saber qual, não responda nenhuma e use "clarify".
-2. Separe o que a equipe ensinou em "learn". Tipos: {"kind":"product","nome":"Bolo de cenoura","preco":30,"unidade":"UN"} (unidade "M2" só para preço por metro quadrado), {"kind":"faq","pergunta":"Vocês vendem fruta?","resposta":"Não vendemos frutas."}, {"kind":"info","texto":"..."}. Para cada item, "scope": "permanente" (regra geral da empresa), "este_cliente" (vale só para esse cliente ou pedido, como desconto excepcional ou condição particular) ou "incerto" (não dá para saber). Nunca transforme desconto excepcional ou condição particular em regra geral.
+2. Separe TUDO o que a equipe ensinou sobre a empresa em "learn", inclusive mensagens encaminhadas ou coladas (cartão da empresa, chave Pix, endereço) e ensinamentos com "eu acho" (salve o que foi dito). Junte ensinamentos ligados ao contexto do histórico (ex.: depois de "horário de segunda a sexta 8 às 18", a mensagem "sábado 8 ao meio-dia" completa o horário). Tipos: {"kind":"product","nome":"Bolo de cenoura","preco":30,"unidade":"UN"} (unidade "M2" só para preço por metro quadrado), {"kind":"faq","pergunta":"Vocês vendem fruta?","resposta":"Não vendemos frutas."}, {"kind":"info","texto":"..."}. Para cada item, "scope": "permanente" (regra geral da empresa), "este_cliente" (vale só para esse cliente ou pedido, como desconto excepcional ou condição particular) ou "incerto" (use raramente: só quando a mensagem fala de um cliente ou pedido e não dá para saber se vale para todos). Na dúvida entre permanente e incerto, escolha permanente: este grupo existe para ensinar. Nunca transforme desconto excepcional ou condição particular em regra geral.
 3. Se a mensagem responde "sim" ou "não" a um item aguardando, use "learn_confirm": [{"codigo":"...","decisao":"salvar" ou "descartar"}].
 4. Se a equipe fizer uma pergunta a você ou só conversar (ex.: "o que você sabe sobre preços?", "como você responderia X?", "bom dia"), responda em "reply_to_team", como um colega: curto, direto, com base no conhecimento atual. Não invente que salvou algo: o aplicativo informa o que foi salvo.
-5. Se não entender, escreva em "clarify" uma pergunta curta para a equipe. Mensagens como "ok", "beleza", "valeu" não precisam de resposta: deixe tudo vazio.
+5. Evite perguntas: use o histórico e o conhecimento atual para entender. NUNCA peça "código da pergunta" nem "a que pergunta se refere"; se não der para ligar a mensagem a uma pergunta aberta, trate como ensinamento ou conversa. Use "clarify" só quando for impossível entender, com uma pergunta curta e concreta. Mensagens como "ok", "beleza", "valeu" não precisam de resposta: deixe tudo vazio.
+6. Se a equipe disser que você já tem uma informação ("já foi passado pra você"), procure no conhecimento atual e no histórico e responda em "reply_to_team" o que você sabe sobre isso.
 Responda APENAS com JSON: {"answers":[{"codigo":"...","resolve":true,"reply_to_customer":"..."}],"learn":[{...,"scope":"permanente"}],"learn_confirm":[],"reply_to_team":"","clarify":""}`;
 }
 // A message from an authorized person (group, "message yourself" chat or the
@@ -1023,6 +1044,7 @@ PREÇOS E ORÇAMENTOS
 
 CONSULTA À EQUIPE
 - Quando, mesmo raciocinando sobre os DADOS, não puder responder com segurança: action "ask_team", com "team_question" curta (até 12 palavras) e "summary" com os dados já informados pelo cliente. O aplicativo avisa o cliente e consulta a equipe; você não precisa escrever "reply".${context.awaitingTeam ? '\n- Já existe uma consulta à equipe em andamento nesta conversa. Se o cliente perguntar de novo sobre o mesmo assunto, diga que ainda está confirmando (action "reply"); outras dúvidas você pode responder normalmente.' : ""}
+- Pedido fora do ramo da empresa (ex.: comida numa empresa que não vende comida) NÃO é motivo de handoff nem de consulta: responda você mesmo que não trabalhamos com isso.
 - Use "handoff" quando o cliente pedir uma pessoa, reembolso, cancelamento, reclamar, relatar defeito, pedir desconto ou negociação, apresentar situação complexa ou precisar de decisão fora das suas permissões. O aplicativo faz a transferência e avisa o cliente.
 
 AGENDAMENTOS

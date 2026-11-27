@@ -459,6 +459,14 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.3 — 27/11/2026 — correções a partir das conversas reais**
+
+- Com autorização do proprietário, conectei um WhatsApp Web no navegador deste ambiente (código de 8 letras) e li só o texto do teste com a cliente "Júlia" (a partir de 13:12 de 27/11) e o grupo cAssist. Conversas pessoais não foram usadas nem guardadas no projeto.
+- Encontrado: "quanto é o kg do feijão" foi passado para atendente (versão 1.1), em vez de responder que a empresa não vende comida, e a conversa ficou pausada; no grupo, o bot não lembrava do contexto e pedia "código da pergunta" e "poderia esclarecer?" repetidamente; o horário ensinado por áudio ("eu acho…") virou pergunta em vez de ser salvo; chave Pix e dados da empresa encaminhados não foram salvos ("Recebido. Não encontrei nada…"); a resposta da equipe ao aviso de atendimento ("feijão é comida") não voltou ao cliente; mensagens do bot e do dono aparecem com o mesmo nome no grupo.
+- Corrigido: aviso de atendimento no grupo ganha código; a resposta da equipe a ele vai ao cliente ("Obrigado por aguardar! …") e o bot volta a atender (`owner_questions.kind = 'atendimento'`, expira sem aviso); toda mensagem do bot no grupo começa com 🤖; prompt do grupo trata o que a equipe diz como verdade, salva dados da empresa (Pix, endereço, telefone, pagamento), salva ensinamentos com "eu acho", junta ensinamentos pelo contexto, prefere "permanente", nunca pede código e responde "já foi passado pra você" com o que sabe; prompt do cliente: pedido fora do ramo é respondido pelo bot, não passado para atendente.
+- Verificado: testes unitários (19, novo teste do aviso de atendimento respondido no grupo) e de navegador (2). Não verificado com Groq real.
+- Pendência: a conversa da Júlia ficou pausada na versão anterior; para retomar, "Devolver ao bot" no painel ou responder o aviso no grupo (depois desta versão).
+
 **1.2 — 27/11/2026 — bot mais inteligente**
 
 - Relato do proprietário (teste com a cliente "Júlia", escrita por ele): perguntado o preço do quilo do feijão, o bot não aplicou o que já tinha aprendido ("na empresa não é vendido nenhum tipo de comida"); no grupo cAssist, respostas pouco inteligentes. O proprietário pediu que eu olhasse o WhatsApp Web aberto no Chrome dele, mas esta conversa não tem acesso ao navegador; a análise foi feita pelo código.
