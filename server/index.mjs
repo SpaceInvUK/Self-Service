@@ -4,6 +4,8 @@ import { rateLimit } from "express-rate-limit";
 import multer from "multer";
 import { randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import {
   openDB,
   uid,
@@ -244,7 +246,26 @@ const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-app.get("/api/health", (req, res) => res.json({ ok: true }));
+// Running version (git commit, or the one the self-updater installed), so an
+// update can be confirmed from outside.
+const appVersion = (() => {
+  try {
+    return execFileSync("git", ["rev-parse", "--short", "HEAD"], {
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    try {
+      return readFileSync(".cassist-version", "utf8").trim().slice(0, 7);
+    } catch {
+      return "dev";
+    }
+  }
+})();
+app.get("/api/health", (req, res) =>
+  res.json({ ok: true, version: appVersion }),
+);
 app.get("/api/session", (req, res) =>
   res.json({
     user: userFrom(req),

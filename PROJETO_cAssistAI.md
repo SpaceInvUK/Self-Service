@@ -466,6 +466,7 @@ Toda alteração no app passa a ser registrada aqui, da mais recente para a mais
 - Prompt do cliente: nova seção "RACIOCÍNIO" (ler todos os dados; aplicar regras gerais a casos específicos, como feijão → comida → não vendemos; reconhecer pedidos fora do ramo; só consultar a equipe quando os dados não permitirem responder nem por regra geral; conferir a resposta antes de enviar).
 - Modelo: preferência pelo mais forte disponível no Groq (`openai/gpt-oss-120b`, depois Kimi K2, Llama 3.3 70B…), raciocínio "medium", temperatura 0,3, modo JSON (com nova tentativa sem ele se o modelo não aceitar), prazo de 40 s.
 - Grupo: o assistente guarda a conversa do grupo e usa as últimas 12 mensagens como contexto; responde como colega quando a equipe pergunta algo ou conversa (`reply_to_team`); vê o conhecimento completo (perguntas com respostas e informações); não responde mais "Recebido. Não encontrei nada…" a mensagens como "ok".
+- `/api/health` passa a informar a versão em execução (commit), para confirmar atualizações do servidor de fora.
 - Verificado: testes unitários (18) e de navegador (2); roteiro por API com IA simulada (cumprimento vai para a IA, orçamento completo continua exato, pedido de pessoa continua indo ao atendente). Não verificado: a melhora real de inteligência com o Groq (não há chave aqui); depende do teste do proprietário.
 
 **1.1 — 24/11/2026 — resposta da equipe sempre volta ao cliente**
