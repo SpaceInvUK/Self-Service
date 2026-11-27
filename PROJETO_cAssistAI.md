@@ -464,6 +464,7 @@ Toda alteração no app passa a ser registrada aqui, da mais recente para a mais
 - Pedido do proprietário: se a regra é "não vendemos comida" e a equipe diz "feijão é comida", o bot deve concluir e responder de forma geral ("Não trabalhamos com nenhum tipo de comida"), não item por item.
 - Prompt do cliente: responder pela regra geral, não só pelo item perguntado. Prompt do grupo: pistas da equipe ("feijão é comida") são combinadas com o que já se sabe para responder ao cliente de forma geral; não salvar regras estreitas já cobertas por uma regra geral, salvar a regra geral se faltar.
 - Verificado: testes unitários (19). Não verificado com Groq real (comportamento da IA).
+- Publicação: o servidor online passou a rodar a versão 1.4.1 (commit 3856a98, inclui 1.3 e 1.4), conferido por `/api/health`.
 
 **1.4 — 27/11/2026 — o bot não trava mais esperando atendente**
 
