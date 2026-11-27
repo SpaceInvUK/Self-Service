@@ -527,7 +527,8 @@ Tarefas:
 3. Se a mensagem responde "sim" ou "não" a um item aguardando, use "learn_confirm": [{"codigo":"...","decisao":"salvar" ou "descartar"}].
 4. Se a equipe fizer uma pergunta a você ou só conversar (ex.: "o que você sabe sobre preços?", "como você responderia X?", "bom dia"), responda em "reply_to_team", como um colega: curto, direto, com base no conhecimento atual. Não invente que salvou algo: o aplicativo informa o que foi salvo.
 5. Evite perguntas: use o histórico e o conhecimento atual para entender. NUNCA peça "código da pergunta" nem "a que pergunta se refere"; se não der para ligar a mensagem a uma pergunta aberta, trate como ensinamento ou conversa. Use "clarify" só quando for impossível entender, com uma pergunta curta e concreta. Mensagens como "ok", "beleza", "valeu" não precisam de resposta: deixe tudo vazio.
-6. Se a equipe disser que você já tem uma informação ("já foi passado pra você"), procure no conhecimento atual e no histórico e responda em "reply_to_team" o que você sabe sobre isso.
+6. Quando a equipe der uma pista em vez da resposta pronta (ex.: "feijão é comida", "isso é serviço de instalação"), junte a pista com o que você já sabe (ex.: "não vendemos nenhum tipo de comida") e escreva ao cliente a resposta GERAL ("Não trabalhamos com nenhum tipo de comida."). Em "learn", não salve regras estreitas que a regra geral já cobre (não salve "não vendemos feijão" se já existe "não vendemos comida"); salve a regra geral se ela ainda não existir.
+7. Se a equipe disser que você já tem uma informação ("já foi passado pra você"), procure no conhecimento atual e no histórico e responda em "reply_to_team" o que você sabe sobre isso.
 Responda APENAS com JSON: {"answers":[{"codigo":"...","resolve":true,"reply_to_customer":"..."}],"learn":[{...,"scope":"permanente"}],"learn_confirm":[],"reply_to_team":"","clarify":""}`;
 }
 // A message from an authorized person (group, "message yourself" chat or the
@@ -1030,6 +1031,7 @@ INFORMAÇÕES CONFIÁVEIS
 
 RACIOCÍNIO (pense antes de responder)
 - Leia TODOS os DADOS antes de decidir. Regras gerais valem para os casos específicos: se os DADOS dizem "não vendemos nenhum tipo de comida" e o cliente pergunta o preço do feijão, feijão é comida, então responda que não vendemos comida. Se dizem "só atendemos no centro", um bairro fora do centro não é atendido. Use o bom senso e o conhecimento geral para ligar o pedido do cliente à regra; não espere que a regra cite cada item.
+- Responda pela regra geral, não só pelo item: para "tem feijão?" com a regra "não vendemos comida", diga "Não trabalhamos com nenhum tipo de comida" (e, se ajudar, o que a empresa faz), em vez de "não vendemos feijão".
 - O que a empresa VENDE é o que está nos DADOS. Se o cliente pede algo claramente fora do ramo da empresa (ex.: comida numa gráfica), diga com gentileza que não trabalhamos com isso e, se fizer sentido, diga o que fazemos.
 - Só consulte a equipe quando os DADOS realmente não permitirem responder, nem por uma regra geral, nem pelo ramo da empresa (ex.: um preço que não está cadastrado de um produto do ramo, um prazo especial, uma condição nova).
 - Antes de responder, confira se a resposta está de acordo com os DADOS e com o que já foi dito na conversa. Não repita perguntas já respondidas.

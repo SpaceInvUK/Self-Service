@@ -459,6 +459,12 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.4.1 — 27/11/2026 — generalizar respostas e ensinamentos**
+
+- Pedido do proprietário: se a regra é "não vendemos comida" e a equipe diz "feijão é comida", o bot deve concluir e responder de forma geral ("Não trabalhamos com nenhum tipo de comida"), não item por item.
+- Prompt do cliente: responder pela regra geral, não só pelo item perguntado. Prompt do grupo: pistas da equipe ("feijão é comida") são combinadas com o que já se sabe para responder ao cliente de forma geral; não salvar regras estreitas já cobertas por uma regra geral, salvar a regra geral se faltar.
+- Verificado: testes unitários (19). Não verificado com Groq real (comportamento da IA).
+
 **1.4 — 27/11/2026 — o bot não trava mais esperando atendente**
 
 - Relato: depois de "passar para atendente" (feijão), a cliente perguntou "Tem pão?" e o bot não respondeu mais. Conferido pelo texto do WhatsApp Web: a conversa estava aguardando atendente desde 13:14 e, nesse estado, o bot ficava calado até alguém assumir.
