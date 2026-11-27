@@ -459,6 +459,15 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.2 — 27/11/2026 — bot mais inteligente**
+
+- Relato do proprietário (teste com a cliente "Júlia", escrita por ele): perguntado o preço do quilo do feijão, o bot não aplicou o que já tinha aprendido ("na empresa não é vendido nenhum tipo de comida"); no grupo cAssist, respostas pouco inteligentes. O proprietário pediu que eu olhasse o WhatsApp Web aberto no Chrome dele, mas esta conversa não tem acesso ao navegador; a análise foi feita pelo código.
+- Com IA ligada, a IA conduz a conversa: as regras fixas só decidem pedido de pessoa/reclamação, aceite de orçamento e orçamento completo (valor exato). Antes, cumprimentos, catálogo, perguntas frequentes por palavra-chave e perguntas de produto eram respondidos por regras e a IA nem via a mensagem. Sem IA ou se ela falhar, as regras continuam como reserva.
+- Prompt do cliente: nova seção "RACIOCÍNIO" (ler todos os dados; aplicar regras gerais a casos específicos, como feijão → comida → não vendemos; reconhecer pedidos fora do ramo; só consultar a equipe quando os dados não permitirem responder nem por regra geral; conferir a resposta antes de enviar).
+- Modelo: preferência pelo mais forte disponível no Groq (`openai/gpt-oss-120b`, depois Kimi K2, Llama 3.3 70B…), raciocínio "medium", temperatura 0,3, modo JSON (com nova tentativa sem ele se o modelo não aceitar), prazo de 40 s.
+- Grupo: o assistente guarda a conversa do grupo e usa as últimas 12 mensagens como contexto; responde como colega quando a equipe pergunta algo ou conversa (`reply_to_team`); vê o conhecimento completo (perguntas com respostas e informações); não responde mais "Recebido. Não encontrei nada…" a mensagens como "ok".
+- Verificado: testes unitários (18) e de navegador (2); roteiro por API com IA simulada (cumprimento vai para a IA, orçamento completo continua exato, pedido de pessoa continua indo ao atendente). Não verificado: a melhora real de inteligência com o Groq (não há chave aqui); depende do teste do proprietário.
+
 **1.1 — 24/11/2026 — resposta da equipe sempre volta ao cliente**
 
 - Teste real do proprietário: o bot perguntava no grupo, mas a resposta da equipe não chegava ao cliente. Causas possíveis pelo código (os dados do servidor não puderam ser consultados): prazo de 2 min vencido antes da resposta (a resposta era descartada); resposta sem citar a mensagem não ligada à pergunta; IA entendendo que não resolvia.

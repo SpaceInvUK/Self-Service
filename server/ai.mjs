@@ -8,9 +8,13 @@ export const aiReady = () =>
 
 // AI_MODEL=auto picks the first available model from this list, so a free
 // provider changing its catalogue does not silently turn the AI off.
+// Strongest first: the bigger reasoning model understands rules like "we do
+// not sell food" applying to "beans" much better than the small ones.
 const preferredModels = [
-  "llama-3.3-70b-versatile",
   "openai/gpt-oss-120b",
+  "moonshotai/kimi-k2-instruct-0905",
+  "moonshotai/kimi-k2-instruct",
+  "llama-3.3-70b-versatile",
   "openai/gpt-oss-20b",
   "llama-3.1-8b-instant",
 ];
@@ -55,22 +59,28 @@ export async function chatJSON(db, companyId, messages) {
   const model = await aiModel();
   if (!model) return null;
   const reasoning = model.includes("gpt-oss");
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${process.env.AI_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model,
-      // Reasoning models spend part of the budget thinking before answering.
-      max_tokens: reasoning ? 2000 : 700,
-      ...(reasoning ? { reasoning_effort: "low" } : {}),
-      temperature: 0.4,
-      messages,
-    }),
-    signal: AbortSignal.timeout(25000),
-  });
+  const call = (jsonMode) =>
+    fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.AI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model,
+        // Reasoning models think before answering: medium effort gives much
+        // better judgement for a few more seconds.
+        max_tokens: reasoning ? 4000 : 900,
+        ...(reasoning ? { reasoning_effort: "medium" } : {}),
+        temperature: 0.3,
+        ...(jsonMode ? { response_format: { type: "json_object" } } : {}),
+        messages,
+      }),
+      signal: AbortSignal.timeout(40000),
+    });
+  // JSON mode keeps the answer parseable; models without it get a retry.
+  let response = await call(true);
+  if (response.status === 400) response = await call(false);
   if (!response.ok) {
     console.error(
       `[IA] provedor respondeu HTTP ${response.status}: ${(await response.text()).slice(0, 200)}`,

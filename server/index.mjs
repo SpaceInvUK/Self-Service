@@ -467,7 +467,9 @@ app.post(base + "/owner/message", async (req, res) => {
   res.json({
     ownerReply:
       r.report ||
-      "Preciso de uma confirmação: veja os itens aguardando abaixo.",
+      (r.asked
+        ? "Preciso de uma confirmação: veja os itens aguardando abaixo."
+        : "Ok."),
     answered: r.answered,
   });
 });
@@ -903,10 +905,12 @@ async function respond(id) {
     audit(db, c.company_id, "system", "quota.exhausted");
     return;
   }
-  // Quotes, catalog lists, FAQ matches and human requests stay deterministic.
-  // Everything else goes to the AI, which may also ask the owner or book;
-  // without AI (or on failure) the deterministic answer is used.
-  if (result.unknown || result.smalltalk) {
+  // With AI the conversation is led by the AI (it reads the whole history and
+  // reasons over the company data). Only three things stay fixed: requests
+  // for a person/complaints, accepting a quote and a complete quote (exact
+  // numbers). Without AI, or if it fails, the rule-based answer is used.
+  const fixed = result.quote || (result.handoff && !result.unknown);
+  if (aiReady() ? !fixed : result.unknown || result.smalltalk) {
     let turn = null;
     try {
       turn = await customerTurn(db, company, c, k, context);
