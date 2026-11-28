@@ -397,6 +397,7 @@ app.get(base + "/state", (req, res) => {
     learned: learnedFor(db, cid),
     ownerQuestions: pendingQuestions(db, cid),
     recentQuestions: recentQuestions(db, cid),
+    contactsAllowed: contactCounts(db, cid).allowed,
     pendingLearning: pendingLearning(db, cid),
     teamGroup: Boolean(
       one(
@@ -485,6 +486,17 @@ app.post(base + "/owner/message", async (req, res) => {
       questionId: text(req.body.questionId, 100) || null,
     }),
   );
+  const reply =
+    r.report ||
+    (r.asked
+      ? "Preciso de uma confirmação: veja os itens aguardando abaixo."
+      : "Ok.");
+  const teamConv = one(
+    db,
+    "SELECT * FROM conversations WHERE company_id=? AND mode='owner' ORDER BY updated DESC",
+    req.company.id,
+  );
+  if (teamConv) addMessage(teamConv, "bot", reply, "panel");
   res.json({
     ownerReply:
       r.report ||
@@ -492,6 +504,16 @@ app.post(base + "/owner/message", async (req, res) => {
         ? "Preciso de uma confirmação: veja os itens aguardando abaixo."
         : "Ok."),
     answered: r.answered,
+  });
+});
+// The owner's conversation with the assistant (the team group's messages).
+app.get(base + "/team/chat", (req, res) => {
+  res.json({
+    messages: q(
+      db,
+      "SELECT m.role,m.text,m.created FROM messages m JOIN conversations c ON c.id=m.conversation_id WHERE c.company_id=? AND c.mode='owner' ORDER BY m.created DESC,m.rowid DESC LIMIT 40",
+      req.company.id,
+    ).reverse(),
   });
 });
 app.post(base + "/learning/:id", (req, res) => {

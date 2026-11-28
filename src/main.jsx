@@ -77,9 +77,9 @@ function chime() {
   }
 }
 const statusNames = {
-  BOT_ATIVO: "Com o assistente",
-  AGUARDANDO_ATENDENTE: "Aguardando atendente",
-  EM_ATENDIMENTO_HUMANO: "Atendimento humano",
+  BOT_ATIVO: "Bot atendendo",
+  AGUARDANDO_ATENDENTE: "Esperando você",
+  EM_ATENDIMENTO_HUMANO: "Você atendendo",
   ENCERRADA: "Encerrada",
   ENVIADO: "Enviado",
   ACEITO: "Aceito",
@@ -340,16 +340,22 @@ function Auth({ session, onDone }) {
     </div>
   );
 }
+// Five places, the same on the site and in the Android app.
 const pages = [
   ["overview", "Início", LayoutDashboard],
   ["inbox", "Conversas", MessageCircle],
-  ["assistant", "Assistente", Sparkles],
+  ["teach", "Ensinar", Sparkles],
   ["agenda", "Agenda", CalendarDays],
-  ["quotes", "Orçamentos", FileText],
-  ["knowledge", "Planilha", BookOpen],
-  ["numbers", "WhatsApp", Smartphone],
-  ["settings", "Configurações", Settings],
+  ["settings", "Ajustes", Settings],
 ];
+// Old destinations now live inside the five pages (page, section).
+const pageAliases = {
+  knowledge: ["teach", "planilha"],
+  assistant: ["teach", ""],
+  quotes: ["inbox", "quotes"],
+  numbers: ["settings", "whatsapp"],
+  usage: ["settings", "empresa"],
+};
 // Storage can be blocked (private windows, strict settings); the app must still open.
 const remembered = {
   get(key) {
@@ -373,6 +379,7 @@ function App() {
     [cid, setCid] = useState(remembered.get("company") || ""),
     [data, setData] = useState(null),
     [page, setPage] = useState("overview"),
+    [section, setSection] = useState(""),
     [toast, setToast] = useState(null),
     [modal, setModal] = useState(null),
     [mobile, setMobile] = useState(false),
@@ -474,9 +481,12 @@ function App() {
       return null;
     }
   };
-  function navigate(p) {
-    setPage(p);
+  function navigate(p, sub = "") {
+    const [target, alias] = pageAliases[p] || [p, ""];
+    setPage(target);
+    setSection(sub || alias);
     setMobile(false);
+    window.scrollTo?.(0, 0);
   }
   async function startSimulation() {
     const r = await act(() =>
@@ -566,16 +576,6 @@ function App() {
           ))}
         </nav>
         <div className="sidebar-bottom">
-          <div className="sidebar-card">
-            <div>
-              <Leaf size={19} />
-              <span>Seu bot começa aqui</span>
-            </div>
-            <p>Uma planilha. O conhecimento da sua empresa.</p>
-            <button onClick={() => navigate("knowledge")}>
-              Preparar minha base <ArrowUpRight size={16} />
-            </button>
-          </div>
           <button className="profile" onClick={() => setModal("profile")}>
             <span className="avatar">{session.user.name[0].toUpperCase()}</span>
             <span>
@@ -592,31 +592,15 @@ function App() {
       <div className="main">
         <header className="topbar">
           <div className="breadcrumb">
-            <button
-              className="icon-button mobile-menu"
-              onClick={() => setMobile(true)}
-              aria-label="Abrir menu"
-            >
-              <Menu />
-            </button>
-            <span>Workspace</span>
-            <ChevronRight size={14} />
             <strong>{pages.find((p) => p[0] === page)?.[1]}</strong>
           </div>
           <div className="top-actions">
-            <div className="top-search">
-              <Search size={16} />
-              <input
-                aria-label="Buscar no catálogo"
-                placeholder="Buscar no catálogo…"
-                value={globalSearch}
-                onChange={(e) => {
-                  setGlobalSearch(e.target.value);
-                  navigate("knowledge");
-                }}
-              />
-              <kbd>⌕</kbd>
-            </div>
+            {data && (
+              <button className="top-test" onClick={startSimulation}>
+                <FlaskConical size={16} />
+                Testar o bot
+              </button>
+            )}
             <button
               className={
                 "icon-button notification-button " +
@@ -626,11 +610,17 @@ function App() {
                 enableNotifications();
                 navigate("inbox");
               }}
-              aria-label="Ativar notificações e abrir fila"
+              aria-label="Ativar avisos e abrir conversas"
             >
               <Bell size={20} />
             </button>
-            <span className="top-avatar">{session.user.name[0]}</span>
+            <button
+              className="top-avatar"
+              onClick={() => setModal("profile")}
+              aria-label="Sua conta"
+            >
+              {session.user.name[0]}
+            </button>
           </div>
         </header>
         <main
@@ -648,34 +638,44 @@ function App() {
           ) : (
             <>
               {page === "overview" && (
-                <Overview {...shared} user={session.user} navigate={navigate} />
-              )}
-              {page === "knowledge" && (
-                <Knowledge
-                  {...shared}
-                  search={globalSearch}
-                  setSearch={setGlobalSearch}
-                />
+                <HomePage {...shared} user={session.user} navigate={navigate} />
               )}
               {page === "inbox" && (
-                <Inbox
+                <ConversationsPage
                   {...shared}
+                  section={section}
+                  setSection={setSection}
                   selected={selected}
                   setSelected={setSelected}
                   enableNotifications={enableNotifications}
                 />
               )}
-              {page === "quotes" && <Quotes {...shared} />}
-              {page === "numbers" && <Numbers {...shared} />}
-              {page === "assistant" && <AssistantPage {...shared} />}
+              {page === "teach" && (
+                <TeachPage
+                  {...shared}
+                  section={section}
+                  search={globalSearch}
+                  setSearch={setGlobalSearch}
+                />
+              )}
               {page === "agenda" && (
                 <AgendaPage {...shared} navigate={navigate} />
               )}
               {page === "settings" && (
-                <>
-                  <SettingsPage {...shared} onCompanies={loadCompanies} />
-                  <Usage {...shared} />
-                </>
+                <AdjustPage
+                  {...shared}
+                  section={section}
+                  setSection={setSection}
+                  companies={companies}
+                  setCid={setCid}
+                  onCompanies={loadCompanies}
+                  user={session.user}
+                  logout={async () => {
+                    await api("/logout", { method: "POST" });
+                    setData(null);
+                    await loadSession();
+                  }}
+                />
               )}
             </>
           )}
@@ -693,6 +693,25 @@ function App() {
           </footer>
         </main>
       </div>
+      {data && !(page === "inbox" && selected) && (
+        <button className="test-bot-button" onClick={startSimulation}>
+          <FlaskConical size={18} />
+          Testar o bot
+        </button>
+      )}
+      <nav className="bottom-nav" aria-label="Menu">
+        {pages.map(([id, label, Icon]) => (
+          <button
+            key={id}
+            className={page === id ? "active" : ""}
+            onClick={() => navigate(id)}
+          >
+            <Icon size={21} />
+            <span>{label}</span>
+            {id === "inbox" && waiting > 0 && <b>{waiting}</b>}
+          </button>
+        ))}
+      </nav>
       {toast && (
         <div
           className={"toast " + (toast.error ? "toast-error" : "")}
@@ -947,7 +966,10 @@ function TestModePanel({ data, cid, act, notify, refresh, isAdmin }) {
     </section>
   );
 }
-function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
+// part="teach": what the assistant knows and asks (page Ensinar).
+// part="settings": who it answers and what it may do (Ajustes → Atendimento).
+function AssistantPage({ data, cid, act, notify, refresh, isAdmin, part }) {
+  const teachPart = part === "teach";
   const [settings, setSettings] = useState(data.settings),
     [teach, setTeach] = useState(""),
     [answers, setAnswers] = useState({});
@@ -978,19 +1000,17 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
   }
   return (
     <>
-      <PageTitle
-        title="Seu assistente"
-        description="Ensine o que ele precisa saber e escolha o que ele pode fazer sozinho."
-      />
-      <TestModePanel
-        data={data}
-        cid={cid}
-        act={act}
-        notify={notify}
-        refresh={refresh}
-        isAdmin={isAdmin}
-      />
-      {data.ownerQuestions.length > 0 && (
+      {!teachPart && (
+        <TestModePanel
+          data={data}
+          cid={cid}
+          act={act}
+          notify={notify}
+          refresh={refresh}
+          isAdmin={isAdmin}
+        />
+      )}
+      {teachPart && data.ownerQuestions.length > 0 && (
         <section className="panel owner-questions">
           <h2>O assistente quer saber</h2>
           {data.ownerQuestions.map((q) => (
@@ -1030,7 +1050,17 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
           ))}
         </section>
       )}
-      {data.recentQuestions?.length > 0 && (
+      {teachPart && (
+        <TeamChat
+          data={data}
+          cid={cid}
+          act={act}
+          refresh={refresh}
+          isAdmin={isAdmin}
+          groupName={settings.teamGroup}
+        />
+      )}
+      {teachPart && data.recentQuestions?.length > 0 && (
         <section className="panel settings-card owner-questions">
           <h2>Últimas perguntas à equipe</h2>
           <ul className="learned-list">
@@ -1070,278 +1100,263 @@ function AssistantPage({ data, cid, act, notify, refresh, isAdmin }) {
         </section>
       )}
       <div className="settings-grid">
-        <section className="panel settings-card">
-          <h2>Ensine o assistente</h2>
-          <p className="muted">
-            Escreva do seu jeito, uma coisa por vez. Ex.: “bolo de cenoura R$
-            30”, “não vendemos fruta”, “entregamos só no centro”.
-          </p>
-          <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!teach.trim()) return;
-              if (await sendOwner(teach)) setTeach("");
-            }}
-          >
-            <textarea
-              aria-label="Ensinar o assistente"
-              rows={3}
-              value={teach}
-              onChange={(e) => setTeach(e.target.value)}
-              placeholder="O que o assistente precisa saber?"
-            />
-            <Button type="submit" icon={Sparkles}>
-              Ensinar
-            </Button>
-          </form>
-          <p className="muted small">
-            {data.teamGroup
-              ? `Pelo celular: escreva no grupo “${settings.teamGroup}” do WhatsApp. O assistente também faz as perguntas por lá.`
-              : data.ownerChannel
-                ? `Grupo “${settings.teamGroup}” não encontrado: por enquanto o assistente usa a conversa com você mesmo (“Você”) no WhatsApp conectado.`
-                : "Conecte o WhatsApp para o assistente consultar a equipe por mensagem."}
-          </p>
-          {data.pendingLearning.length > 0 && (
-            <>
-              <h3>Esperando sua confirmação</h3>
+        {teachPart && (
+          <section className="panel settings-card">
+            <h2>O que ele sabe</h2>
+            <p className="muted small">
+              {data.teamGroup
+                ? `Pelo celular: escreva no grupo “${settings.teamGroup}” do WhatsApp. O assistente também faz as perguntas por lá.`
+                : data.ownerChannel
+                  ? `Grupo “${settings.teamGroup}” não encontrado: por enquanto o assistente usa a conversa com você mesmo (“Você”) no WhatsApp conectado.`
+                  : "Conecte o WhatsApp para o assistente consultar a equipe por mensagem."}
+            </p>
+            {data.pendingLearning.length > 0 && (
+              <>
+                <h3>Esperando sua confirmação</h3>
+                <ul className="learned-list">
+                  {data.pendingLearning.map((l) => (
+                    <li key={l.id}>
+                      <span>
+                        <Badge tone="outline">#{l.code}</Badge>{" "}
+                        {l.item.kind === "product"
+                          ? `${l.item.nome}: ${BRL(l.item.preco * 100)}${l.item.unidade === "M2" ? " por m²" : ""}`
+                          : l.item.kind === "faq"
+                            ? `${l.item.pergunta} → ${l.item.resposta}`
+                            : l.item.texto}
+                        <br />
+                        <span className="muted small">{l.reason}</span>
+                      </span>
+                      <span className="row-actions">
+                        {[
+                          [true, "Salvar"],
+                          [false, "Descartar"],
+                        ].map(([keep, label]) => (
+                          <Button
+                            key={label}
+                            variant="secondary"
+                            onClick={() =>
+                              act(
+                                () =>
+                                  api(`/companies/${cid}/learning/${l.id}`, {
+                                    method: "POST",
+                                    body: { keep },
+                                  }),
+                                keep ? "Salvo." : "Descartado.",
+                              ).then(refresh)
+                            }
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+            <h3>O que ele já aprendeu</h3>
+            {data.learned.length ? (
               <ul className="learned-list">
-                {data.pendingLearning.map((l) => (
+                {data.learned.map((l) => (
                   <li key={l.id}>
                     <span>
-                      <Badge tone="outline">#{l.code}</Badge>{" "}
-                      {l.item.kind === "product"
-                        ? `${l.item.nome}: ${BRL(l.item.preco * 100)}${l.item.unidade === "M2" ? " por m²" : ""}`
-                        : l.item.kind === "faq"
-                          ? `${l.item.pergunta} → ${l.item.resposta}`
-                          : l.item.texto}
-                      <br />
-                      <span className="muted small">{l.reason}</span>
+                      {l.kind === "product"
+                        ? `${l.data.nome}: ${BRL(l.data.preco * 100)}${l.data.unidade === "M2" ? " por m²" : ""}`
+                        : l.kind === "faq"
+                          ? `${l.data.pergunta} → ${l.data.resposta}`
+                          : l.data.texto}
                     </span>
-                    <span className="row-actions">
-                      {[
-                        [true, "Salvar"],
-                        [false, "Descartar"],
-                      ].map(([keep, label]) => (
-                        <Button
-                          key={label}
-                          variant="secondary"
-                          onClick={() =>
-                            act(
-                              () =>
-                                api(`/companies/${cid}/learning/${l.id}`, {
-                                  method: "POST",
-                                  body: { keep },
-                                }),
-                              keep ? "Salvo." : "Descartado.",
-                            ).then(refresh)
-                          }
-                        >
-                          {label}
-                        </Button>
-                      ))}
-                    </span>
+                    <button
+                      className="icon-button"
+                      aria-label="Esquecer"
+                      onClick={() =>
+                        act(
+                          () =>
+                            api(`/companies/${cid}/learned/${l.id}`, {
+                              method: "DELETE",
+                            }),
+                          "Esquecido.",
+                        ).then(refresh)
+                      }
+                    >
+                      <Trash2 size={16} />
+                    </button>
                   </li>
                 ))}
               </ul>
-            </>
-          )}
-          <h3>O que ele já aprendeu</h3>
-          {data.learned.length ? (
-            <ul className="learned-list">
-              {data.learned.map((l) => (
-                <li key={l.id}>
-                  <span>
-                    {l.kind === "product"
-                      ? `${l.data.nome}: ${BRL(l.data.preco * 100)}${l.data.unidade === "M2" ? " por m²" : ""}`
-                      : l.kind === "faq"
-                        ? `${l.data.pergunta} → ${l.data.resposta}`
-                        : l.data.texto}
-                  </span>
-                  <button
-                    className="icon-button"
-                    aria-label="Esquecer"
-                    onClick={() =>
-                      act(
-                        () =>
-                          api(`/companies/${cid}/learned/${l.id}`, {
-                            method: "DELETE",
-                          }),
-                        "Esquecido.",
-                      ).then(refresh)
-                    }
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted small">Nada ainda.</p>
-          )}
-        </section>
-        <section className="panel settings-card">
-          <h2>O que ele faz sozinho</h2>
-          <p className="muted">
-            Desligado: o assistente passa a conversa para um atendente.
-          </p>
-          <Toggle checked={settings.faq} onChange={(v) => set("faq", v)}>
-            Tirar dúvidas
-          </Toggle>
-          <Toggle checked={settings.quotes} onChange={(v) => set("quotes", v)}>
-            Fazer orçamentos
-          </Toggle>
-          <Toggle
-            checked={settings.booking}
-            onChange={(v) => set("booking", v)}
-          >
-            Fazer agendamentos
-          </Toggle>
-          <Toggle
-            checked={settings.askOwner}
-            onChange={(v) => set("askOwner", v)}
-          >
-            Consultar a equipe quando não souber
-          </Toggle>
-          <Toggle
-            checked={settings.notifyOwner}
-            onChange={(v) => set("notifyOwner", v)}
-          >
-            Avisar a equipe quando precisar de atendente
-          </Toggle>
-          <h3>Horário de funcionamento</h3>
-          <Toggle
-            checked={settings.hoursSet}
-            onChange={(v) => set("hoursSet", v)}
-          >
-            Usar horário (fora dele o assistente avisa quando abre)
-          </Toggle>
-          {settings.hoursSet && (
-            <div className="hours-grid">
-              {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-                const v = settings.days[d];
-                return (
-                  <div key={d} className="hours-row">
-                    <Toggle
-                      checked={Boolean(v)}
-                      onChange={(on) =>
-                        setDay(d, on ? ["08:00", "18:00"] : null)
-                      }
-                    >
-                      {dayNames[d]}
-                    </Toggle>
-                    {v ? (
-                      <span>
-                        <input
-                          type="time"
-                          aria-label={`${dayNames[d]} abre`}
-                          value={v[0]}
-                          onChange={(e) => setDay(d, [e.target.value, v[1]])}
-                        />
-                        às
-                        <input
-                          type="time"
-                          aria-label={`${dayNames[d]} fecha`}
-                          value={v[1]}
-                          onChange={(e) => setDay(d, [v[0], e.target.value])}
-                        />
-                      </span>
-                    ) : (
-                      <span className="muted small">fechado</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {settings.booking && (
-            <label>
-              Duração de cada horário agendado
-              <select
-                value={settings.slot}
-                onChange={(e) => set("slot", Number(e.target.value))}
-              >
-                {[15, 30, 45, 60, 90, 120].map((m) => (
-                  <option key={m} value={m}>
-                    {m < 60
-                      ? `${m} minutos`
-                      : `${m / 60} hora${m > 60 ? "s" : ""}`}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {settings.booking && (
-            <label>
-              Intervalo entre agendamentos
-              <select
-                value={settings.gap}
-                onChange={(e) => set("gap", Number(e.target.value))}
-              >
-                {[0, 5, 10, 15, 30, 60].map((m) => (
-                  <option key={m} value={m}>
-                    {m ? `${m} minutos` : "Sem intervalo"}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <h3>Equipe no WhatsApp</h3>
-          <p className="muted small">
-            Crie um grupo no WhatsApp com o número conectado e as pessoas da
-            equipe. O assistente pergunta ali quando não souber, avisa reservas
-            e transferências e aprende com as respostas.
-          </p>
-          <label>
-            Nome do grupo
-            <input
-              value={settings.teamGroup}
-              onChange={(e) => set("teamGroup", e.target.value)}
-            />
-          </label>
-          <p className="muted small">
-            {data.teamGroup
-              ? "✅ Grupo encontrado."
-              : "Grupo ainda não encontrado no WhatsApp conectado."}
-          </p>
-          <label>
-            Tempo para a equipe responder antes de passar para um atendente
-            <select
-              value={settings.teamTimeout}
-              onChange={(e) => set("teamTimeout", Number(e.target.value))}
-            >
-              {[60, 120, 180, 300, 600].map((sec) => (
-                <option key={sec} value={sec}>
-                  {sec / 60} minuto{sec > 60 ? "s" : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Quem pode ensinar o assistente pelo grupo (um número com DDI e DDD
-            por linha; vazio = todos do grupo)
-            <textarea
-              rows={3}
-              value={(settings.authorized || []).join("\n")}
-              onChange={(e) =>
-                set(
-                  "authorized",
-                  e.target.value.split(/\n|,/).map((v) => v.trim()),
-                )
-              }
-              placeholder="5511987654321"
-            />
-          </label>
-          {settings.booking && !settings.hoursSet && (
-            <p className="error">
-              Para agendar, ligue e preencha o horário de funcionamento.
+            ) : (
+              <p className="muted small">Nada ainda.</p>
+            )}
+          </section>
+        )}
+        {!teachPart && (
+          <section className="panel settings-card">
+            <h2>O que ele faz sozinho</h2>
+            <p className="muted">
+              Desligado: o assistente passa a conversa para um atendente.
             </p>
-          )}
-          {isAdmin && (
-            <Button onClick={save} icon={Check}>
-              Salvar
-            </Button>
-          )}
-        </section>
+            <Toggle checked={settings.faq} onChange={(v) => set("faq", v)}>
+              Tirar dúvidas
+            </Toggle>
+            <Toggle
+              checked={settings.quotes}
+              onChange={(v) => set("quotes", v)}
+            >
+              Fazer orçamentos
+            </Toggle>
+            <Toggle
+              checked={settings.booking}
+              onChange={(v) => set("booking", v)}
+            >
+              Fazer agendamentos
+            </Toggle>
+            <Toggle
+              checked={settings.askOwner}
+              onChange={(v) => set("askOwner", v)}
+            >
+              Consultar a equipe quando não souber
+            </Toggle>
+            <Toggle
+              checked={settings.notifyOwner}
+              onChange={(v) => set("notifyOwner", v)}
+            >
+              Avisar a equipe quando precisar de atendente
+            </Toggle>
+            <h3>Horário de funcionamento</h3>
+            <Toggle
+              checked={settings.hoursSet}
+              onChange={(v) => set("hoursSet", v)}
+            >
+              Usar horário (fora dele o assistente avisa quando abre)
+            </Toggle>
+            {settings.hoursSet && (
+              <div className="hours-grid">
+                {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+                  const v = settings.days[d];
+                  return (
+                    <div key={d} className="hours-row">
+                      <Toggle
+                        checked={Boolean(v)}
+                        onChange={(on) =>
+                          setDay(d, on ? ["08:00", "18:00"] : null)
+                        }
+                      >
+                        {dayNames[d]}
+                      </Toggle>
+                      {v ? (
+                        <span>
+                          <input
+                            type="time"
+                            aria-label={`${dayNames[d]} abre`}
+                            value={v[0]}
+                            onChange={(e) => setDay(d, [e.target.value, v[1]])}
+                          />
+                          às
+                          <input
+                            type="time"
+                            aria-label={`${dayNames[d]} fecha`}
+                            value={v[1]}
+                            onChange={(e) => setDay(d, [v[0], e.target.value])}
+                          />
+                        </span>
+                      ) : (
+                        <span className="muted small">fechado</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {settings.booking && (
+              <label>
+                Duração de cada horário agendado
+                <select
+                  value={settings.slot}
+                  onChange={(e) => set("slot", Number(e.target.value))}
+                >
+                  {[15, 30, 45, 60, 90, 120].map((m) => (
+                    <option key={m} value={m}>
+                      {m < 60
+                        ? `${m} minutos`
+                        : `${m / 60} hora${m > 60 ? "s" : ""}`}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {settings.booking && (
+              <label>
+                Intervalo entre agendamentos
+                <select
+                  value={settings.gap}
+                  onChange={(e) => set("gap", Number(e.target.value))}
+                >
+                  {[0, 5, 10, 15, 30, 60].map((m) => (
+                    <option key={m} value={m}>
+                      {m ? `${m} minutos` : "Sem intervalo"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <h3>Equipe no WhatsApp</h3>
+            <p className="muted small">
+              Crie um grupo no WhatsApp com o número conectado e as pessoas da
+              equipe. O assistente pergunta ali quando não souber, avisa
+              reservas e transferências e aprende com as respostas.
+            </p>
+            <label>
+              Nome do grupo
+              <input
+                value={settings.teamGroup}
+                onChange={(e) => set("teamGroup", e.target.value)}
+              />
+            </label>
+            <p className="muted small">
+              {data.teamGroup
+                ? "✅ Grupo encontrado."
+                : "Grupo ainda não encontrado no WhatsApp conectado."}
+            </p>
+            <label>
+              Tempo para a equipe responder antes de passar para um atendente
+              <select
+                value={settings.teamTimeout}
+                onChange={(e) => set("teamTimeout", Number(e.target.value))}
+              >
+                {[60, 120, 180, 300, 600].map((sec) => (
+                  <option key={sec} value={sec}>
+                    {sec / 60} minuto{sec > 60 ? "s" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Quem pode ensinar o assistente pelo grupo (um número com DDI e DDD
+              por linha; vazio = todos do grupo)
+              <textarea
+                rows={3}
+                value={(settings.authorized || []).join("\n")}
+                onChange={(e) =>
+                  set(
+                    "authorized",
+                    e.target.value.split(/\n|,/).map((v) => v.trim()),
+                  )
+                }
+                placeholder="5511987654321"
+              />
+            </label>
+            {settings.booking && !settings.hoursSet && (
+              <p className="error">
+                Para agendar, ligue e preencha o horário de funcionamento.
+              </p>
+            )}
+            {isAdmin && (
+              <Button onClick={save} icon={Check}>
+                Salvar
+              </Button>
+            )}
+          </section>
+        )}
       </div>
     </>
   );
@@ -1385,8 +1400,11 @@ function AgendaPage({ data, cid, act, refresh, isAdmin, navigate }) {
         <div className="subtle-note">
           <AlertCircle size={17} />
           Agendamentos estão desligados. Ligue em{" "}
-          <button className="link" onClick={() => navigate("assistant")}>
-            Assistente
+          <button
+            className="link"
+            onClick={() => navigate("settings", "atendimento")}
+          >
+            Ajustes → Atendimento
           </button>
           .
         </div>
@@ -1471,6 +1489,380 @@ function AgendaPage({ data, cid, act, refresh, isAdmin, navigate }) {
     </>
   );
 }
+function Tabs({ options, value, onChange }) {
+  return (
+    <div className="tabs" role="tablist">
+      {options.map(([id, label, count]) => (
+        <button
+          key={id}
+          role="tab"
+          aria-selected={value === id}
+          className={value === id ? "active" : ""}
+          onClick={() => onChange(id)}
+        >
+          {label}
+          {count ? <b>{count}</b> : null}
+        </button>
+      ))}
+    </div>
+  );
+}
+// Início: what needs the owner now, plus the first steps until they are done.
+function HomePage({ data, user, navigate, startSimulation }) {
+  const first = user.name.split(" ")[0];
+  const known =
+    (data.knowledge?.products?.length || 0) +
+    (data.knowledge?.faqs?.length || 0) +
+    data.learned.length;
+  const steps = [
+    {
+      done: data.numbers.some((n) => n.status === "online"),
+      title: "Conectar o WhatsApp",
+      text: "Pelo código de 8 letras, direto no celular.",
+      go: () => navigate("settings", "whatsapp"),
+    },
+    {
+      done: !data.settings.testMode || data.contactsAllowed > 0,
+      title: "Escolher quem o bot atende",
+      text: "No modo teste, ele só responde quem você marcar.",
+      go: () => navigate("settings", "atendimento"),
+    },
+    {
+      done: data.teamGroup,
+      title: `Criar o grupo “${data.settings.teamGroup}” no WhatsApp`,
+      text: "Com o número conectado e a sua equipe. É onde ele aprende.",
+      go: () => navigate("settings", "atendimento"),
+    },
+    {
+      done: known >= 5,
+      title: "Ensinar pelo menos 5 coisas",
+      text: "Preços, serviços, horários, o que não vende…",
+      go: () => navigate("teach"),
+    },
+    {
+      done: data.conversations.length > 0,
+      title: "Testar o bot",
+      text: "Converse com ele como se fosse um cliente.",
+      go: startSimulation,
+    },
+  ];
+  const doneCount = steps.filter((s) => s.done).length;
+  const todo = [
+    ...data.conversations
+      .filter((c) => c.status === "AGUARDANDO_ATENDENTE")
+      .map((c) => ({
+        key: "c" + c.id,
+        icon: Headphones,
+        text: `${c.contact} espera uma pessoa`,
+        sub: c.last_message,
+        label: "Abrir conversa",
+        go: () => navigate("inbox"),
+      })),
+    ...data.ownerQuestions.map((q) => ({
+      key: "q" + q.id,
+      icon: Sparkles,
+      text: `O bot quer saber: ${q.question}`,
+      sub: `${q.contact || "Cliente"} perguntou “${q.customer_text}”`,
+      label: "Responder",
+      go: () => navigate("teach"),
+    })),
+    ...data.pendingLearning.map((l) => ({
+      key: "l" + l.id,
+      icon: CheckCircle2,
+      text: "Confirmar o que ele aprendeu",
+      sub: l.reason,
+      label: "Ver",
+      go: () => navigate("teach"),
+    })),
+    ...data.bookings
+      .filter((b) => b.status === "PENDENTE")
+      .map((b) => ({
+        key: "b" + b.id,
+        icon: CalendarDays,
+        text: `Confirmar horário de ${b.customer}`,
+        sub: `${whenLabel(b.start, data.settings.tz)}${b.service ? " · " + b.service : ""}`,
+        label: "Ver agenda",
+        go: () => navigate("agenda"),
+      })),
+    ...data.quotes
+      .filter((q) => q.status === "ACEITO")
+      .map((q) => ({
+        key: "o" + q.id,
+        icon: FileText,
+        text: `Orçamento aceito: ${q.product}`,
+        sub: `${BRL(q.total)} · confirme a venda`,
+        label: "Ver orçamento",
+        go: () => navigate("inbox", "quotes"),
+      })),
+  ];
+  const month = new Date().toISOString().slice(0, 7);
+  return (
+    <>
+      <PageTitle
+        title={`Olá, ${first}.`}
+        description="Aqui está o que precisa de você."
+      />
+      {doneCount < steps.length && (
+        <section className="panel settings-card first-steps">
+          <h2>
+            Primeiros passos{" "}
+            <span className="muted small">
+              {doneCount} de {steps.length}
+            </span>
+          </h2>
+          <div className="progress">
+            <span style={{ width: `${(doneCount / steps.length) * 100}%` }} />
+          </div>
+          <ol>
+            {steps.map((s) => (
+              <li key={s.title} className={s.done ? "done" : ""}>
+                {s.done ? <CheckCircle2 size={20} /> : <span className="dot" />}
+                <div>
+                  <strong>{s.title}</strong>
+                  <span className="muted small">{s.text}</span>
+                </div>
+                {!s.done && (
+                  <Button variant="secondary" onClick={s.go}>
+                    Fazer
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+      <section className="panel settings-card">
+        <h2>O que precisa de você</h2>
+        {todo.length ? (
+          <ul className="todo-list">
+            {todo.map((t) => (
+              <li key={t.key}>
+                <t.icon size={20} />
+                <div>
+                  <strong>{t.text}</strong>
+                  {t.sub && <span className="muted small">{t.sub}</span>}
+                </div>
+                <Button onClick={t.go}>{t.label}</Button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="muted">Tudo em dia ✅ O assistente está cuidando.</p>
+        )}
+      </section>
+      <div className="mini-stats">
+        <div>
+          <strong>
+            {
+              data.conversations.filter(
+                (c) =>
+                  c.mode !== "simulation" && c.updated.slice(0, 7) === month,
+              ).length
+            }
+          </strong>
+          <span>conversas no mês</span>
+        </div>
+        <div>
+          <strong>{data.quotes.length}</strong>
+          <span>orçamentos</span>
+        </div>
+        <div>
+          <strong>
+            {data.quotes.filter((q) => q.status === "VENDA_CONFIRMADA").length}
+          </strong>
+          <span>vendas confirmadas</span>
+        </div>
+      </div>
+    </>
+  );
+}
+function ConversationsPage(props) {
+  const { data, section, setSection, startSimulation, enableNotifications } =
+    props;
+  const tab = section === "quotes" ? "quotes" : "chats";
+  const waiting = data.conversations.filter(
+    (c) => c.status === "AGUARDANDO_ATENDENTE",
+  ).length;
+  return (
+    <>
+      <PageTitle
+        title="Conversas"
+        description="O assistente atende; você entra quando precisar."
+      >
+        <Button variant="secondary" icon={Bell} onClick={enableNotifications}>
+          Ativar avisos
+        </Button>
+        <Button icon={FlaskConical} onClick={startSimulation}>
+          Nova simulação
+        </Button>
+      </PageTitle>
+      <Tabs
+        value={tab}
+        onChange={(id) => setSection(id === "quotes" ? "quotes" : "")}
+        options={[
+          ["chats", "Conversas", waiting],
+          ["quotes", "Orçamentos", 0],
+        ]}
+      />
+      {tab === "chats" ? <Inbox {...props} /> : <Quotes {...props} embedded />}
+    </>
+  );
+}
+// The owner's chat with the assistant (same as the WhatsApp group).
+function TeamChat({ data, cid, act, refresh, isAdmin, groupName }) {
+  const [messages, setMessages] = useState([]),
+    [text, setText] = useState(""),
+    [sending, setSending] = useState(false);
+  const bottom = useRef();
+  const load = () =>
+    api(`/companies/${cid}/team/chat`)
+      .then((r) => setMessages(r.messages))
+      .catch(() => {});
+  useEffect(() => {
+    load();
+  }, [cid]);
+  useEffect(() => {
+    bottom.current?.scrollIntoView({ block: "nearest" });
+  }, [messages.length]);
+  async function send(e) {
+    e.preventDefault();
+    const value = text.trim();
+    if (!value || sending) return;
+    setSending(true);
+    setMessages((m) => [...m, { role: "team", text: value }]);
+    setText("");
+    const r = await act(() =>
+      api(`/companies/${cid}/owner/message`, {
+        method: "POST",
+        body: { text: value },
+      }),
+    );
+    setSending(false);
+    if (r) {
+      await load();
+      setMessages((m) =>
+        m.some((x) => x.role === "bot" && x.text.includes(r.ownerReply))
+          ? m
+          : [...m, { role: "bot", text: r.ownerReply }],
+      );
+      refresh();
+    }
+  }
+  return (
+    <section className="panel settings-card team-chat">
+      <h2>Converse com seu assistente</h2>
+      <p className="muted small">
+        Ensine do seu jeito: “bolo de cenoura R$ 30”, “não vendemos comida”,
+        “abrimos sábado das 8 ao meio-dia”. Ou pergunte: “o que você sabe sobre
+        preços?”. É a mesma conversa do grupo “{groupName}” no WhatsApp, onde
+        você também pode mandar áudio.
+      </p>
+      <div className="team-messages">
+        {messages.length ? (
+          messages.map((m, i) => (
+            <div
+              key={i}
+              className={"team-msg " + (m.role === "bot" ? "bot" : "me")}
+            >
+              {m.text.replace(/^🤖\s*/, "")}
+            </div>
+          ))
+        ) : (
+          <p className="muted small">Comece contando algo sobre a empresa.</p>
+        )}
+        <span ref={bottom} />
+      </div>
+      {isAdmin && (
+        <form className="inline-form" onSubmit={send}>
+          <input
+            aria-label="Ensinar o assistente"
+            placeholder="Escreva para o assistente…"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+          />
+          <Button type="submit" icon={Send} disabled={sending}>
+            Enviar
+          </Button>
+        </form>
+      )}
+    </section>
+  );
+}
+function TeachPage(props) {
+  const { data, section } = props;
+  return (
+    <>
+      <PageTitle
+        title="Ensinar"
+        description="Converse com seu assistente, responda o que ele perguntou e veja o que ele já sabe."
+      />
+      <AssistantPage {...props} part="teach" />
+      <details
+        className="panel settings-card fold"
+        open={section === "planilha" || !data.knowledge}
+      >
+        <summary>Planilha (Excel) — para muitos produtos de uma vez</summary>
+        <Knowledge {...props} />
+      </details>
+    </>
+  );
+}
+function AdjustPage(props) {
+  const { section, setSection, companies, setCid, user, logout, isAdmin, cid } =
+    props;
+  const tab = ["whatsapp", "empresa"].includes(section)
+    ? section
+    : "atendimento";
+  return (
+    <>
+      <PageTitle
+        title="Ajustes"
+        description="Como o assistente atende, o WhatsApp e a sua empresa."
+      />
+      <Tabs
+        value={tab}
+        onChange={setSection}
+        options={[
+          ["atendimento", "Atendimento"],
+          ["whatsapp", "WhatsApp"],
+          ["empresa", "Empresa"],
+        ]}
+      />
+      {tab === "atendimento" && <AssistantPage {...props} part="settings" />}
+      {tab === "whatsapp" && <Numbers {...props} />}
+      {tab === "empresa" && (
+        <>
+          {companies.length > 1 && (
+            <section className="panel settings-card">
+              <label>
+                Trocar de empresa
+                <select value={cid} onChange={(e) => setCid(e.target.value)}>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </section>
+          )}
+          <SettingsPage {...props} />
+          <Usage {...props} />
+          <section className="panel settings-card">
+            <h2>Sua conta</h2>
+            <p>
+              {user.name} · <span className="muted">{user.email}</span> ·{" "}
+              {isAdmin ? "Administrador" : "Atendente"}
+            </p>
+            <Button variant="secondary" icon={LogOut} onClick={logout}>
+              Sair
+            </Button>
+          </section>
+        </>
+      )}
+    </>
+  );
+}
 function PageTitle({ eyebrow, title, description, children }) {
   return (
     <div className="page-heading">
@@ -1481,280 +1873,6 @@ function PageTitle({ eyebrow, title, description, children }) {
       </div>
       <div className="heading-actions">{children}</div>
     </div>
-  );
-}
-function Overview({ data, user, navigate, startSimulation }) {
-  const actual = data.conversations.filter((c) => c.mode === "whatsapp"),
-    sim = data.conversations.filter((c) => c.mode === "simulation"),
-    sent = data.usage
-      .filter((x) => x.kind === "bot" && x.state === "confirmed")
-      .reduce((a, b) => a + b.count, 0),
-    sales = data.quotes.filter((q) => q.status === "VENDA_CONFIRMADA"),
-    waiting = data.conversations.filter(
-      (c) => c.status === "AGUARDANDO_ATENDENTE",
-    ),
-    online = data.numbers.filter((n) => n.status === "online").length;
-  return (
-    <>
-      <PageTitle
-        eyebrow="SEU DIA, MAIS LEVE"
-        title={`Olá, ${user.name.split(" ")[0]}.`}
-        description="Um olhar para suas conversas. Mais espaço para o seu negócio."
-      >
-        <Badge tone="outline">
-          <span className="green-dot" />
-          Central disponível
-        </Badge>
-      </PageTitle>
-      <div className="hero">
-        <div className="hero-copy">
-          <span className="hero-kicker">
-            <Sparkles size={15} /> INTELIGÊNCIA COM O SEU JEITO
-          </span>
-          <h2>
-            Boas conversas.
-            <br />
-            Novas possibilidades.
-          </h2>
-          <p>
-            Transforme o que sua empresa sabe em um atendimento
-            <br className="desktop-break" /> que acolhe, responde e ajuda a
-            vender.
-          </p>
-          <Button onClick={startSimulation} icon={Play}>
-            Experimentar meu assistente <ArrowRight size={16} />
-          </Button>
-          <span className="hero-footnote">
-            Ambiente de teste · Nenhuma mensagem é enviada ao WhatsApp
-          </span>
-        </div>
-        <div className="hero-art">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <span className="art-leaf leaf-one" />
-          <span className="art-leaf leaf-two" />
-          <div className="hero-chat">
-            <div className="hero-chat-head">
-              <span className="bot-avatar">
-                <img src="/cassis.png" alt="" />
-              </span>
-              <div>
-                <strong>Seu assistente</strong>
-                <small>Conhecimento que vira conversa</small>
-              </div>
-              <span className="green-dot" />
-            </div>
-            <div className="sample-user">
-              Olá! Pode me ajudar com um orçamento?
-            </div>
-            <div className="sample-bot">
-              Claro! Vamos encontrar a melhor opção para você. <span>✦</span>
-            </div>
-            <div className="hero-chat-foot">
-              <FileSpreadsheet size={15} /> Respostas a partir da sua base{" "}
-              <CheckCheck size={15} />
-            </div>
-          </div>
-          <div className="floating-tag">
-            <span>
-              <Check size={14} />
-            </span>{" "}
-            Menos tarefas repetidas
-          </div>
-        </div>
-      </div>
-      <div className="stats-grid">
-        {[
-          [
-            MessageCircle,
-            "Respostas do bot",
-            count(sent),
-            "Enviadas neste mês",
-            "purple",
-          ],
-          [
-            Headphones,
-            "Aguardando atendimento",
-            count(waiting.length),
-            "Pessoas que precisam de você",
-            "orange",
-          ],
-          [
-            FileText,
-            "Orçamentos criados",
-            count(data.quotes.length),
-            `${sim.length} conversa(s) de simulação`,
-            "green",
-          ],
-          [
-            Smartphone,
-            "WhatsApps conectados",
-            `${online} / ${data.company.number_limit}`,
-            "Números online / limite da conta",
-            "blue",
-          ],
-        ].map(([Icon, label, value, note, color]) => (
-          <div className="stat-card" key={label}>
-            <div className="stat-top">
-              <span>{label}</span>
-              <div className={"stat-icon " + color}>
-                <Icon size={18} />
-              </div>
-            </div>
-            <strong>{value}</strong>
-            <small>{note}</small>
-          </div>
-        ))}
-      </div>
-      <div className="dashboard-grid">
-        <section className="panel journey">
-          <div className="panel-heading">
-            <div>
-              <h2>Seu assistente, passo a passo</h2>
-              <p>Pequenos passos. Um atendimento mais completo.</p>
-            </div>
-            <Badge>
-              {
-                [
-                  !!data.knowledge,
-                  data.numbers.length > 0,
-                  sim.length > 0,
-                ].filter(Boolean).length
-              }{" "}
-              de 3
-            </Badge>
-          </div>
-          {[
-            [
-              BookOpen,
-              "Adicione o conhecimento",
-              "Importe produtos, preços e respostas em uma planilha.",
-              !!data.knowledge,
-              "knowledge",
-            ],
-            [
-              FlaskConical,
-              "Faça a primeira conversa",
-              "Teste seu catálogo e veja como o assistente responde.",
-              sim.length > 0,
-              "test",
-            ],
-            [
-              Smartphone,
-              "Conecte um WhatsApp",
-              "Instale o conector no computador ou servidor do cliente.",
-              online > 0,
-              "numbers",
-            ],
-          ].map(([Icon, title, desc, done, target], i) => (
-            <button
-              key={title}
-              className="journey-step"
-              onClick={() =>
-                target === "test" ? startSimulation() : navigate(target)
-              }
-            >
-              <div className={"step-icon " + (done ? "done" : "")}>
-                {done ? <Check size={18} /> : <Icon size={18} />}
-              </div>
-              <span>
-                <strong>{title}</strong>
-                <small>{desc}</small>
-              </span>
-              <ChevronRight size={17} />
-            </button>
-          ))}
-        </section>
-        <section className="panel knowledge-card">
-          <div className="panel-heading">
-            <h2>Raízes do seu atendimento</h2>
-            <Leaf size={20} />
-          </div>
-          <div className="knowledge-illustration">
-            <FileSpreadsheet size={35} />
-            <span className="mini-spark">✦</span>
-          </div>
-          <h3>
-            {data.knowledge
-              ? "Sua base está pronta para testar."
-              : "Tudo começa com uma planilha."}
-          </h3>
-          <p>
-            {data.knowledge
-              ? `${data.knowledge.products.length} produtos e ${data.knowledge.faqs.length} respostas para ajudar seu assistente.`
-              : "Reúna produtos, preços e informações úteis da empresa em um único lugar."}
-          </p>
-          {data.company.demo > 0 && (
-            <Badge tone="amber">Catálogo de demonstração</Badge>
-          )}
-          <button className="text-button" onClick={() => navigate("knowledge")}>
-            Explorar conhecimento <ArrowRight size={16} />
-          </button>
-        </section>
-      </div>
-      <section className="panel recent">
-        <div className="panel-heading">
-          <div>
-            <h2>Conversas recentes</h2>
-            <p>Cada conversa é uma oportunidade de cuidar.</p>
-          </div>
-          <button className="text-button" onClick={() => navigate("inbox")}>
-            Ver atendimentos <ArrowRight size={16} />
-          </button>
-        </div>
-        {!data.conversations.length ? (
-          <div className="recent-empty">
-            <span className="round-icon">
-              <MessageCircle size={22} />
-            </span>
-            <div>
-              <strong>Sua primeira conversa começa aqui.</strong>
-              <p>Teste o assistente antes de conectar um número real.</p>
-            </div>
-            <Button variant="secondary" onClick={startSimulation}>
-              Iniciar teste <ArrowUpRight size={15} />
-            </Button>
-          </div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Contato</th>
-                  <th>Última mensagem</th>
-                  <th>Situação</th>
-                  <th>Canal</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.conversations.slice(0, 4).map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <strong>{c.contact}</strong>
-                    </td>
-                    <td className="truncate-cell">
-                      {c.last_message || "Conversa iniciada"}
-                    </td>
-                    <td>
-                      <Badge
-                        tone={
-                          c.status === "AGUARDANDO_ATENDENTE" ? "amber" : ""
-                        }
-                      >
-                        {statusNames[c.status]}
-                      </Badge>
-                    </td>
-                    <td>
-                      {c.mode === "simulation" ? "Simulador" : "WhatsApp"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </>
   );
 }
 function Knowledge({ data, cid, act, notify, search, setSearch, isAdmin }) {
@@ -2138,18 +2256,7 @@ function Inbox({
   }
   return (
     <>
-      <PageTitle
-        title="Conversas que importam"
-        description="O assistente cuida do início. Você entra quando faz a diferença."
-      >
-        <Button variant="secondary" icon={Bell} onClick={enableNotifications}>
-          Ativar avisos
-        </Button>
-        <Button icon={FlaskConical} onClick={startSimulation}>
-          Nova simulação
-        </Button>
-      </PageTitle>
-      <div className="inbox-layout">
+      <div className={"inbox-layout " + (selected ? "has-selection" : "")}>
         <aside className="conversation-list">
           <div className="list-tabs">
             <button
@@ -2162,7 +2269,7 @@ function Inbox({
               className={filter === "waiting" ? "selected" : ""}
               onClick={() => setFilter("waiting")}
             >
-              Aguardando
+              Esperando você
             </button>
           </div>
           {list.length ? (
@@ -2194,7 +2301,13 @@ function Inbox({
                   <span
                     className={
                       "conversation-status " +
-                      (c.status === "AGUARDANDO_ATENDENTE" ? "waiting" : "")
+                      (c.status === "AGUARDANDO_ATENDENTE"
+                        ? "waiting"
+                        : c.status === "EM_ATENDIMENTO_HUMANO"
+                          ? "human"
+                          : c.status === "ENCERRADA"
+                            ? "closed"
+                            : "bot")
                     }
                   >
                     {statusNames[c.status]}
@@ -2215,6 +2328,16 @@ function Inbox({
           ) : (
             <>
               <div className="chat-heading">
+                <button
+                  className="icon-button chat-back"
+                  onClick={() => setSelected(null)}
+                  aria-label="Voltar para a lista"
+                >
+                  <ChevronRight
+                    size={20}
+                    style={{ transform: "rotate(180deg)" }}
+                  />
+                </button>
                 <span className="avatar lavender">
                   {conversation.mode === "simulation" ? (
                     <FlaskConical size={19} />
@@ -2231,36 +2354,30 @@ function Inbox({
                   </small>
                 </div>
                 <div className="chat-controls">
-                  {conversation.status === "BOT_ATIVO" ? (
+                  {conversation.status !== "EM_ATENDIMENTO_HUMANO" && (
                     <Button
-                      variant="secondary"
                       icon={Headphones}
                       onClick={() => change("EM_ATENDIMENTO_HUMANO")}
                     >
-                      Assumir
+                      Eu assumo
                     </Button>
-                  ) : (
-                    <>
-                      <Button
-                        variant="secondary"
-                        icon={Play}
-                        onClick={() => change("BOT_ATIVO")}
-                      >
-                        Devolver ao bot
-                      </Button>
-                      {conversation.status === "AGUARDANDO_ATENDENTE" && (
-                        <Button onClick={() => change("EM_ATENDIMENTO_HUMANO")}>
-                          Assumir
-                        </Button>
-                      )}
-                    </>
+                  )}
+                  {conversation.status !== "BOT_ATIVO" && (
+                    <Button
+                      variant="secondary"
+                      icon={Play}
+                      onClick={() => change("BOT_ATIVO")}
+                    >
+                      Devolver ao bot
+                    </Button>
                   )}
                 </div>
               </div>
               {conversation.status === "AGUARDANDO_ATENDENTE" && (
                 <div className="chat-notice">
-                  <Headphones size={16} />O assistente pausou. Esta conversa
-                  precisa de você.
+                  <Headphones size={16} />
+                  Esperando você. Enquanto isso o assistente continua
+                  respondendo outras dúvidas.
                 </div>
               )}
               <div className="messages">
@@ -2401,7 +2518,7 @@ function Inbox({
     </>
   );
 }
-function Quotes({ data, cid, act, startSimulation }) {
+function Quotes({ data, cid, act, startSimulation, embedded }) {
   const [filter, setFilter] = useState("all"),
     [detail, setDetail] = useState(null);
   const quotes = data.quotes.filter(
@@ -2412,14 +2529,16 @@ function Quotes({ data, cid, act, startSimulation }) {
   );
   return (
     <>
-      <PageTitle
-        title="Do interesse à venda"
-        description="Orçamentos claros. Cada próximo passo acompanhado."
-      >
-        <Button icon={FlaskConical} onClick={startSimulation}>
-          Testar um orçamento
-        </Button>
-      </PageTitle>
+      {!embedded && (
+        <PageTitle
+          title="Do interesse à venda"
+          description="Orçamentos claros. Cada próximo passo acompanhado."
+        >
+          <Button icon={FlaskConical} onClick={startSimulation}>
+            Testar um orçamento
+          </Button>
+        </PageTitle>
+      )}
       <div className="quote-summary">
         {[
           ["Orçamentos enviados", data.quotes.length],

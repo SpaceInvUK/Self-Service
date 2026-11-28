@@ -20,7 +20,7 @@ test("complete workflow: setup, Excel import, quote, handoff, sale, quotas and t
     path: "test-results/dashboard-desktop.png",
     fullPage: true,
   });
-  await page.getByRole("button", { name: "Planilha", exact: true }).click();
+  await page.getByRole("button", { name: "Ensinar", exact: true }).click();
   await page.locator("input[type=file]").setInputFiles({
     name: "empresa.xlsx",
     mimeType:
@@ -46,13 +46,13 @@ test("complete workflow: setup, Excel import, quote, handoff, sale, quotas and t
     .getByRole("button", { name: "Enviar mensagem", exact: true })
     .click();
   await expect(page.locator(".chat-notice")).toBeVisible();
-  await page.getByRole("button", { name: "Assumir", exact: true }).click();
+  await page.getByRole("button", { name: "Eu assumo", exact: true }).click();
   await message.fill("Olá! Vou confirmar os detalhes da produção.");
   await page
     .getByRole("button", { name: "Enviar mensagem", exact: true })
     .click();
   await expect(page.locator(".message.human")).toContainText("produção");
-  await page.getByRole("button", { name: "Orçamentos", exact: true }).click();
+  await page.getByRole("tab", { name: "Orçamentos", exact: true }).click();
   await page.getByRole("button", { name: "Detalhes", exact: true }).click();
   await page
     .getByRole("button", { name: "Confirmar venda", exact: true })
@@ -60,9 +60,8 @@ test("complete workflow: setup, Excel import, quote, handoff, sale, quotas and t
   await expect(
     page.getByRole("cell", { name: "Venda confirmada", exact: true }),
   ).toBeVisible();
-  await page
-    .getByRole("button", { name: "Configurações", exact: true })
-    .click();
+  await page.getByRole("button", { name: "Ajustes", exact: true }).click();
+  await page.getByRole("tab", { name: "Empresa", exact: true }).click();
   await page.getByRole("button", { name: "Nova empresa", exact: true }).click();
   await page
     .getByLabel("Nome da empresa", { exact: true })
@@ -72,7 +71,7 @@ test("complete workflow: setup, Excel import, quote, handoff, sale, quotas and t
     .getByRole("button", { name: "Criar empresa", exact: true })
     .click();
   await expect(page.getByLabel("Empresa ativa")).toHaveValue(/.+/);
-  await page.getByRole("button", { name: "Planilha", exact: true }).click();
+  await page.getByRole("button", { name: "Ensinar", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Sua base está esperando por você" }),
   ).toBeVisible();
@@ -125,11 +124,13 @@ test("complete workflow: setup, Excel import, quote, handoff, sale, quotas and t
   expect(numbers.filter((r) => r.ok())).toHaveLength(1);
   expect(numbers.filter((r) => r.status() === 400)).toHaveLength(1);
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator("aside.sidebar")).not.toBeInViewport();
-  await page.getByRole("button", { name: "Abrir menu" }).click();
-  await expect(page.locator("aside.sidebar")).toBeInViewport();
+  // Phone: bottom bar instead of the side menu.
+  await expect(page.locator("aside.sidebar")).not.toBeVisible();
+  await expect(page.locator(".bottom-nav")).toBeVisible();
   await page.getByRole("button", { name: "Início", exact: true }).click();
-  await expect(page.locator("aside.sidebar")).not.toBeInViewport();
+  await expect(
+    page.getByRole("heading", { name: "O que precisa de você" }),
+  ).toBeVisible();
   await page.screenshot({
     path: "test-results/dashboard-mobile.png",
     fullPage: true,

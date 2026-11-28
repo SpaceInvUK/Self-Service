@@ -341,10 +341,11 @@ test("a team reply to a hand-off notice reaches the customer and resumes the bot
     conv,
   ).at(-1).text;
   assert.ok(notice.startsWith("🤖 🔔 #"));
+  const tag = notice.match(/#([A-Z0-9]{4})/)[1];
   const r = await handleTeamMessage(
     db,
     company,
-    "Não vendemos nenhum tipo de comida.",
+    `#${tag} Não vendemos nenhum tipo de comida.`,
   );
   assert.equal(r.answered, 1);
   assert.equal(
@@ -358,5 +359,58 @@ test("a team reply to a hand-off notice reaches the customer and resumes the bot
   assert.equal(
     one(db, "SELECT status FROM conversations WHERE id=?", conv).status,
     "BOT_ATIVO",
+  );
+});
+test("teaching while a customer waits for a person does not message that customer", async () => {
+  const { openDB, run, one, uid, now } = await import("../server/db.mjs");
+  const { handleTeamMessage, notifyTeamHandoff } =
+    await import("../server/assistant.mjs");
+  const { mkdtempSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const db = openDB(mkdtempSync(join(tmpdir(), "cassist-teach-")));
+  const cid = uid(),
+    conv = uid();
+  run(
+    db,
+    "INSERT INTO companies(id,name,created) VALUES(?,?,?)",
+    cid,
+    "Padaria",
+    now(),
+  );
+  run(
+    db,
+    "INSERT INTO numbers(id,company_id,label,phone,token,status,created) VALUES(?,?,?,?,?,?,?)",
+    uid(),
+    cid,
+    "Loja",
+    "5511999990000",
+    "t",
+    "online",
+    now(),
+  );
+  run(
+    db,
+    "INSERT INTO conversations(id,company_id,contact,mode,status,context,updated) VALUES(?,?,?,?,?,?,?)",
+    conv,
+    cid,
+    "Ana",
+    "simulation",
+    "AGUARDANDO_ATENDENTE",
+    "{}",
+    now(),
+  );
+  const company = one(db, "SELECT * FROM companies WHERE id=?", cid);
+  notifyTeamHandoff(
+    db,
+    company,
+    one(db, "SELECT * FROM conversations WHERE id=?", conv),
+    "quero falar com uma pessoa",
+  );
+  const r = await handleTeamMessage(db, company, "bolo de cenoura 30 reais");
+  assert.equal(r.answered, 0);
+  assert.equal(
+    one(db, "SELECT COUNT(*) n FROM messages WHERE conversation_id=?", conv).n,
+    0,
   );
 });

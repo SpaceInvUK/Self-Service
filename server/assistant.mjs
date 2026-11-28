@@ -387,7 +387,7 @@ export function welcomeMembers(db, company, jids) {
   return sendToTeam(
     db,
     company.id,
-    `👋 Bem-vindo(a), ${tags}! Este grupo é onde eu aprendo sobre a ${company.name}: o que você disser aqui sobre a empresa eu passo a usar nos atendimentos.\nQuando eu perguntar algo com um código (#XXXX), responda citando a mensagem.${s.authorized.length ? "\nPara me ensinar, seu número precisa estar na lista de autorizados (Assistente → Equipe no WhatsApp)." : ""}`,
+    `👋 Bem-vindo(a), ${tags}! Este grupo é onde eu aprendo sobre a ${company.name}: o que você disser aqui sobre a empresa eu passo a usar nos atendimentos.\nQuando eu perguntar algo com um código (#XXXX), responda citando a mensagem.${s.authorized.length ? "\nPara me ensinar, seu número precisa estar na lista de autorizados (Ajustes → Atendimento → Equipe no WhatsApp)." : ""}`,
     people,
   );
 }
@@ -541,6 +541,9 @@ export async function handleTeamMessage(
 ) {
   const text = String(textIn).trim().slice(0, 3000);
   const pending = pendingQuestions(db, company.id);
+  // Hand-off notices only take a reply that quotes them or carries their
+  // code; a loose message (e.g. teaching a price) must never go to a customer.
+  const askedByBot = pending.filter((p) => p.kind !== "atendimento");
   const learning = pendingLearning(db, company.id);
   // Which question/item this reply is about: quoted message first, then #code.
   let target = questionId
@@ -646,11 +649,16 @@ export async function handleTeamMessage(
   ) {
     // Without AI: the reply goes as written to the question it refers to (or
     // the only open one); whether it is a permanent rule is asked separately.
-    const question = target || (pending.length === 1 ? pending[0] : null);
+    const question = target || (askedByBot.length === 1 ? askedByBot[0] : null);
     plan = question
       ? {
           answers: [
-            { codigo: question.code, resolve: true, reply_to_customer: text },
+            {
+              codigo: question.code,
+              resolve: true,
+              // The code is for the team; the customer gets only the answer.
+              reply_to_customer: text.replace(/#[A-Z0-9]{4}\b/gi, "").trim(),
+            },
           ],
           learn: [
             {
@@ -661,7 +669,7 @@ export async function handleTeamMessage(
             },
           ],
         }
-      : pending.length > 1
+      : askedByBot.length > 1
         ? {
             clarify:
               "Há mais de uma pergunta aberta. Responda citando a mensagem da pergunta ou começando com o código (#XXXX).",
@@ -671,7 +679,7 @@ export async function handleTeamMessage(
 
   let answered = 0,
     asked = 0;
-  const candidates = target ? [target] : pending;
+  const candidates = target ? [target] : askedByBot;
   for (const a of Array.isArray(plan.answers) ? plan.answers : []) {
     const question =
       (target && (!a.codigo || a.codigo === target.code) ? target : null) ||
@@ -820,7 +828,7 @@ export async function handleTeamMessage(
     );
     if (!mid)
       report.push(
-        `❔ #${lcode} ${conflict ? `Conflito (${conflict})` : "Vale para os próximos atendimentos?"}: ${itemLabel(item)}. Confirme na tela Assistente.`,
+        `❔ #${lcode} ${conflict ? `Conflito (${conflict})` : "Vale para os próximos atendimentos?"}: ${itemLabel(item)}. Confirme em Ensinar → "Esperando sua confirmação".`,
       );
   }
   if (typeof plan.reply_to_team === "string" && plan.reply_to_team.trim())

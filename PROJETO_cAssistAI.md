@@ -459,6 +459,17 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.6 — 28/11/2026 — app mais simples (site e Android)**
+
+- Pedido do proprietário: aplicar as sugestões de uso no app e no site (as mesmas telas servem aos dois; o APK abre o site, então não precisa reinstalar).
+- Menu com 5 lugares: Início, Conversas, Ensinar, Agenda, Ajustes. No celular, barra embaixo no lugar do menu lateral. Topo sem "Workspace" e sem a busca de catálogo; "Testar o bot" fixo (no celular, no topo). Atalhos antigos (planilha, orçamentos, WhatsApp, consumo) abrem a aba certa.
+- Início: "O que precisa de você" (clientes esperando uma pessoa, perguntas do bot, confirmações de aprendizado, horários a confirmar, orçamentos aceitos, cada um com botão) e "Primeiros passos" com progresso (conectar WhatsApp, escolher quem atende, criar o grupo, ensinar 5 coisas, testar), mais três números do mês.
+- Conversas: abas Conversas | Orçamentos; no celular, lista ou conversa em tela cheia com voltar; botões "Eu assumo" e "Devolver ao bot"; etiquetas coloridas "Bot atendendo", "Esperando você", "Você atendendo".
+- Ensinar: perguntas do bot para responder, "Converse com seu assistente" (mesma conversa do grupo, rota `GET /team/chat`; respostas do painel guardadas sem ir ao WhatsApp), confirmações e o que ele sabe, histórico de perguntas, e a planilha dentro de "Planilha (Excel)".
+- Ajustes: abas Atendimento (quem atende, o que faz sozinho, horários, equipe), WhatsApp e Empresa (dados, uso do mês, conta e sair).
+- Correção encontrada no teste das telas: sem IA, um ensinamento solto ("bolo de cenoura 30 reais") era enviado ao cliente que esperava atendente. Agora avisos de atendimento só recebem resposta citada ou com o código; o código é retirado do texto enviado ao cliente.
+- Verificado: testes unitários (20, novo teste do ensinamento solto) e de navegador (2, atualizados para a navegação nova, incluindo a barra do celular); telas conferidas num celular emulado (Pixel 7) sem rolagem horizontal; demonstração offline navega sem erros.
+
 **1.5 — 28/11/2026 — app Android (APK)**
 
 - Pedido do proprietário: um app em APK. Não foi preciso fork: o app fica em `android/` no mesmo projeto.
