@@ -465,6 +465,7 @@ Toda alteração no app passa a ser registrada aqui, da mais recente para a mais
 - Feito: campo de senha com mostrar/esconder (entrada, cadastro e senha inicial de funcionários); texto direto "Atendimento no WhatsApp que aprende com você." com três pontos curtos; círculo removido; títulos "Entrar" / "Criar sua conta"; título menor no celular.
 - Esclarecido: o app Android abre o site, então atualizações de tela e do bot chegam ao app instalado sem reinstalar; só mudanças na "casca" do app (raras) pedem baixar o APK de novo.
 - Verificado: botão do olho alterna o campo para texto (computador e celular emulado); testes unitários (20) e de navegador (2).
+- Publicação: o servidor online passou a rodar a versão 1.6.1 (commit f4c2311), conferido por `/api/health`.
 
 **1.6 — 28/11/2026 — app mais simples (site e Android)**
 
