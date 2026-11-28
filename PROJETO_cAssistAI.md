@@ -469,6 +469,7 @@ Toda alteração no app passa a ser registrada aqui, da mais recente para a mais
 - Ajustes: abas Atendimento (quem atende, o que faz sozinho, horários, equipe), WhatsApp e Empresa (dados, uso do mês, conta e sair).
 - Correção encontrada no teste das telas: sem IA, um ensinamento solto ("bolo de cenoura 30 reais") era enviado ao cliente que esperava atendente. Agora avisos de atendimento só recebem resposta citada ou com o código; o código é retirado do texto enviado ao cliente.
 - Verificado: testes unitários (20, novo teste do ensinamento solto) e de navegador (2, atualizados para a navegação nova, incluindo a barra do celular); telas conferidas num celular emulado (Pixel 7) sem rolagem horizontal; demonstração offline navega sem erros.
+- Publicação: o servidor online passou a rodar a versão 1.6 (commit 77d5dca), conferido por `/api/health`; o app Android mostra as telas novas sem reinstalar.
 
 **1.5 — 28/11/2026 — app Android (APK)**
 
