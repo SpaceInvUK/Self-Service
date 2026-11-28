@@ -459,6 +459,13 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.6.1 — 28/11/2026 — tela de entrada**
+
+- Pedidos do proprietário: botão "olhinho" para mostrar a senha; tirar "Seu atendimento, pronto para florescer" (achou bobo) e o círculo decorativo que cruzava o texto; "Bom ter você de volta" aparecia para qualquer pessoa.
+- Feito: campo de senha com mostrar/esconder (entrada, cadastro e senha inicial de funcionários); texto direto "Atendimento no WhatsApp que aprende com você." com três pontos curtos; círculo removido; títulos "Entrar" / "Criar sua conta"; título menor no celular.
+- Esclarecido: o app Android abre o site, então atualizações de tela e do bot chegam ao app instalado sem reinstalar; só mudanças na "casca" do app (raras) pedem baixar o APK de novo.
+- Verificado: botão do olho alterna o campo para texto (computador e celular emulado); testes unitários (20) e de navegador (2).
+
 **1.6 — 28/11/2026 — app mais simples (site e Android)**
 
 - Pedido do proprietário: aplicar as sugestões de uso no app e no site (as mesmas telas servem aos dois; o APK abre o site, então não precisa reinstalar).

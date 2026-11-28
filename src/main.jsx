@@ -42,6 +42,8 @@ import {
   Play,
   History,
   CalendarDays,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import "./styles.css";
 const BRL = (v) =>
@@ -194,6 +196,23 @@ function Modal({ title, subtitle, children, onClose }) {
     </div>
   );
 }
+// Password field with the "eye" to show what is being typed.
+function PasswordInput(props) {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="password-field">
+      <input {...props} type={show ? "text" : "password"} />
+      <button
+        type="button"
+        onClick={() => setShow((v) => !v)}
+        aria-label={show ? "Esconder senha" : "Mostrar senha"}
+        title={show ? "Esconder senha" : "Mostrar senha"}
+      >
+        {show ? <EyeOff size={18} /> : <Eye size={18} />}
+      </button>
+    </span>
+  );
+}
 function Auth({ session, onDone }) {
   const [error, setError] = useState(""),
     [busy, setBusy] = useState(false);
@@ -218,42 +237,35 @@ function Auth({ session, onDone }) {
       <section className="auth-story">
         <Brand large />
         <div>
-          <span className="eyebrow">MENOS REPETIÇÃO. MAIS CONVERSA.</span>
-          <h1>
-            Seu atendimento,
-            <br />
-            pronto para
-            <br />
-            <em>florescer.</em>
-          </h1>
+          <h1>Atendimento no WhatsApp que aprende com você.</h1>
           <p>
-            Conhecimento da sua empresa. Respostas com cuidado.
-            <br />
-            Tudo no mesmo lugar.
+            O assistente responde seus clientes, faz orçamentos e marca
+            horários. Quando não sabe, pergunta para você.
           </p>
           <div className="auth-pills">
             <span>
-              <FileSpreadsheet size={16} /> Alimente com Excel
+              <MessageCircle size={16} /> Responde a qualquer hora
             </span>
             <span>
-              <MessageCircle size={16} /> Atenda com clareza
+              <Sparkles size={16} /> Aprende pelo WhatsApp
+            </span>
+            <span>
+              <Headphones size={16} /> Você assume quando quiser
             </span>
           </div>
         </div>
-        <small>cAssistAI · Feito para aproximar pessoas.</small>
+        <small>cAssistAI</small>
       </section>
       <section className="auth-form">
         <div className="auth-form-inner">
           <div className="leaf-box">
             <Leaf size={25} />
           </div>
-          <h2>
-            {session.needsSetup ? "Vamos começar?" : "Bom ter você de volta."}
-          </h2>
+          <h2>{session.needsSetup ? "Criar sua conta" : "Entrar"}</h2>
           <p className="muted">
             {session.needsSetup
-              ? "Crie sua conta. Leva menos de um minuto."
-              : "Entre para cuidar das suas conversas."}
+              ? "Leva menos de um minuto."
+              : "Use seu e-mail e senha."}
           </p>
           <form onSubmit={submit}>
             {session.needsSetup && (
@@ -297,9 +309,8 @@ function Auth({ session, onDone }) {
             </label>
             <label>
               Senha
-              <input
+              <PasswordInput
                 name="password"
-                type="password"
                 minLength={session.needsSetup ? 10 : undefined}
                 placeholder={
                   session.needsSetup ? "Pelo menos 10 caracteres" : "Sua senha"
@@ -3302,9 +3313,8 @@ function SettingsPage({
             </label>
             <label>
               Senha inicial
-              <input
+              <PasswordInput
                 name="password"
-                type="password"
                 minLength={10}
                 required
                 autoComplete="new-password"

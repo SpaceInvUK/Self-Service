@@ -3424,3 +3424,39 @@ details.fold[open] > summary {
     cursor: pointer;
   }
 }
+/* Login: no decorative circle crossing the text. */
+.auth-story:after {
+  display: none;
+}
+.auth-story h1 {
+  max-width: 14ch;
+}
+.password-field {
+  position: relative;
+  display: block;
+}
+.password-field input {
+  padding-right: 44px !important;
+}
+.password-field button {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-40%);
+  border: 0;
+  background: none;
+  color: var(--muted);
+  padding: 6px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+@media (max-width: 900px) {
+  .auth-story {
+    min-height: 0;
+  }
+  .auth-story h1 {
+    font-size: 26px;
+    max-width: none;
+  }
+}
