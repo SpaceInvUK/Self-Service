@@ -9,3 +9,7 @@ connector/auth/
 connector/.env
 connector/node_modules/
 .cassist-version
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties

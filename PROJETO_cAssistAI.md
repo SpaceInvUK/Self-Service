@@ -459,6 +459,14 @@ Ter em mãos: o celular com o WhatsApp que vai atender (de preferência um núme
 
 Toda alteração no app passa a ser registrada aqui, da mais recente para a mais antiga.
 
+**1.5 — 28/11/2026 — app Android (APK)**
+
+- Pedido do proprietário: um app em APK. Não foi preciso fork: o app fica em `android/` no mesmo projeto.
+- App nativo mínimo (Java, sem bibliotecas) que abre o cAssistAI online (`cassistUrl` em `android/gradle.properties`, hoje https://cassistai.duckdns.org) num WebView: login mantido, envio de arquivos (importação do Excel), downloads (modelo da planilha) para a pasta Downloads, botão voltar, links externos (WhatsApp, Google, mapas) abertos nos apps do celular, tela "Sem conexão", ícone a partir do logo e barra de status roxa. Atualizações do painel chegam sem reinstalar.
+- Montagem: o ambiente desta conversa não pôde instalar as ferramentas do Android (a instalação aceitaria licenças do Google automaticamente e foi bloqueada). O APK é montado no GitHub Actions (`.github/workflows/android.yml`), publicado como release, com link fixo para a versão mais recente: https://github.com/SpaceInvUK/Self-Service/releases/latest/download/cAssistAI.apk. Assinatura de depuração guardada em cache do Actions para que novas versões instalem por cima; para a Play Store será preciso uma chave de publicação própria.
+- Limitações: "Escolher da agenda" não aparece dentro do app (recurso só do Chrome); conectar o Google Agenda abre o navegador.
+- Verificado: configuração do Gradle carrega sem erro. A montagem do APK é conferida na execução do GitHub Actions (abaixo).
+
 **1.4.1 — 27/11/2026 — generalizar respostas e ensinamentos**
 
 - Pedido do proprietário: se a regra é "não vendemos comida" e a equipe diz "feijão é comida", o bot deve concluir e responder de forma geral ("Não trabalhamos com nenhum tipo de comida"), não item por item.

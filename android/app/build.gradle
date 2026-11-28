@@ -1,0 +1,27 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.cassistai.app'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'com.cassistai.app'
+        minSdk 24
+        targetSdk 35
+        // The CI passes the run number, so each APK is newer than the last.
+        versionCode((project.findProperty('versionCode') ?: '1') as int)
+        versionName "1.0.${project.findProperty('versionCode') ?: '1'}"
+        buildConfigField 'String', 'APP_URL', "\"${project.property('cassistUrl')}\""
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
