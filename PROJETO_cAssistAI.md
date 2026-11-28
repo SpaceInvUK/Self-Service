@@ -465,7 +465,7 @@ Toda alteração no app passa a ser registrada aqui, da mais recente para a mais
 - App nativo mínimo (Java, sem bibliotecas) que abre o cAssistAI online (`cassistUrl` em `android/gradle.properties`, hoje https://cassistai.duckdns.org) num WebView: login mantido, envio de arquivos (importação do Excel), downloads (modelo da planilha) para a pasta Downloads, botão voltar, links externos (WhatsApp, Google, mapas) abertos nos apps do celular, tela "Sem conexão", ícone a partir do logo e barra de status roxa. Atualizações do painel chegam sem reinstalar.
 - Montagem: o ambiente desta conversa não pôde instalar as ferramentas do Android (a instalação aceitaria licenças do Google automaticamente e foi bloqueada). O APK é montado no GitHub Actions (`.github/workflows/android.yml`), publicado como release, com link fixo para a versão mais recente: https://github.com/SpaceInvUK/Self-Service/releases/latest/download/cAssistAI.apk. Assinatura de depuração guardada em cache do Actions para que novas versões instalem por cima; para a Play Store será preciso uma chave de publicação própria.
 - Limitações: "Escolher da agenda" não aparece dentro do app (recurso só do Chrome); conectar o Google Agenda abre o navegador.
-- Verificado: configuração do Gradle carrega sem erro. A montagem do APK é conferida na execução do GitHub Actions (abaixo).
+- Verificado: configuração do Gradle carrega sem erro; GitHub Actions montou e publicou o APK na primeira execução (release app-v1.0.1, 47 KB); o APK baixado pelo link fixo contém o app (MainActivity, endereço do site, ícones) e está assinado (v2). Não verificado: instalação e uso num Android real.
 
 **1.4.1 — 27/11/2026 — generalizar respostas e ensinamentos**
 
